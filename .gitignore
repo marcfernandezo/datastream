@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# watchtower
+/data
+/dist
+/playwright-report
+/test-results
+!.env.example

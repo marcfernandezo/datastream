@@ -55,12 +55,12 @@ converted to decimals at the presentation edge.
 Adding a network = new folder under `src/server/chains/<net>/`, an entry in
 `registry.ts`, env vars in `src/env.ts`. See README → "Adding a network".
 
-| Net | Sources            | Provider                                         |
-| --- | ------------------ | ------------------------------------------------ |
-| BTC | address, x/y/zpub  | Esplora (mempool.space default), gap limit 20    |
-| ETH | address            | Etherscan v2 (default) or Alchemy                |
-| SOL | address            | Helius or plain JSON-RPC                         |
-| ZEC | t-addr, UFVK (P7)  | explorer API; Rust sidecar ↔ lightwalletd        |
+| Net | Sources           | Provider                                      |
+| --- | ----------------- | --------------------------------------------- |
+| BTC | address, x/y/zpub | Esplora (mempool.space default), gap limit 20 |
+| ETH | address           | Etherscan v2 (default) or Alchemy             |
+| SOL | address           | Helius or plain JSON-RPC                      |
+| ZEC | t-addr, UFVK (P7) | explorer API; Rust sidecar ↔ lightwalletd     |
 
 ## Data model
 
