@@ -13,7 +13,7 @@ export function SetupForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Welcome to Watchtower</CardTitle>
+        <CardTitle>Welcome to Datastream</CardTitle>
         <CardDescription>
           Paste the <code>SETUP_TOKEN</code> from your environment and choose a password (12+
           characters).

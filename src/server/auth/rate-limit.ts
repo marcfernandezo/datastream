@@ -1,5 +1,5 @@
 /**
- * In-memory token buckets. Watchtower runs as a single web instance, so a
+ * In-memory token buckets. Datastream runs as a single web instance, so a
  * process-local store is enough. It lives on globalThis so every route bundle
  * in the process shares the same buckets.
  */
@@ -16,8 +16,8 @@ interface LimiterOptions {
   windowMs: number;
 }
 
-const g = globalThis as unknown as { __wtBuckets?: Map<string, Bucket> };
-const store = (g.__wtBuckets ??= new Map());
+const g = globalThis as unknown as { __dsBuckets?: Map<string, Bucket> };
+const store = (g.__dsBuckets ??= new Map());
 
 export function createLimiter(name: string, { capacity, windowMs }: LimiterOptions) {
   const refillPerMs = capacity / windowMs;

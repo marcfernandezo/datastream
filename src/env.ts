@@ -14,20 +14,22 @@ const base64Key = z
   .string()
   .trim()
   .refine((v) => Buffer.from(v, "base64").length === 32, {
-    message: "must be 32 random bytes, base64-encoded (generate with `pnpm wt gen-key`)",
+    message: "must be 32 random bytes, base64-encoded (generate with `pnpm ds gen-key`)",
   });
 
 export const envSchema = z
   .object({
     NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
-    LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
-    DATABASE_PATH: z.string().default("./data/watchtower.db"),
+    LOG_LEVEL: z
+      .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
+      .default("info"),
+    DATABASE_PATH: z.string().default("./data/datastream.db"),
     BACKUP_DIR: z.string().default("./data/backups"),
     BACKUP_KEEP_DAILY: int(7, 0, 365),
     BACKUP_KEEP_WEEKLY: int(4, 0, 104),
 
-    WATCHTOWER_ENC_KEY: base64Key,
-    WATCHTOWER_ENC_KEY_PREVIOUS: base64Key.optional().or(z.literal("").transform(() => undefined)),
+    DATASTREAM_ENC_KEY: base64Key,
+    DATASTREAM_ENC_KEY_PREVIOUS: base64Key.optional().or(z.literal("").transform(() => undefined)),
 
     AUTH_MODE: z.enum(["password", "network-only"]).default("password"),
     SETUP_TOKEN: optionalString,
@@ -55,6 +57,8 @@ export const envSchema = z
     BTC_ESPLORA_URL: url("https://mempool.space/api"),
     BTC_EXPLORER_URL: url("https://mempool.space"),
     BTC_GAP_LIMIT: int(20, 1, 200),
+    /** Requests/second to Esplora. mempool.space blocks aggressive clients; raise for your own instance. */
+    BTC_ESPLORA_RPS: z.coerce.number().positive().max(100).default(1),
 
     ETH_PROVIDER: z.enum(["etherscan", "alchemy"]).default("etherscan"),
     ETHERSCAN_API_URL: url("https://api.etherscan.io/v2/api"),
@@ -68,6 +72,8 @@ export const envSchema = z
     HELIUS_API_KEY: optionalString,
     HELIUS_RPC_URL: url("https://mainnet.helius-rpc.com"),
     SOL_EXPLORER_URL: url("https://solscan.io"),
+    /** Requests/second to SOL_RPC_URL (public mainnet RPC is heavily rate-limited). */
+    SOL_RPC_RPS: z.coerce.number().positive().max(100).default(2),
 
     COINGECKO_API_KEY: optionalString,
     COINGECKO_API_TIER: z.enum(["demo", "pro"]).default("demo"),

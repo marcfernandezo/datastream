@@ -9,7 +9,7 @@ const level = process.env.LOG_LEVEL ?? (process.env.NODE_ENV === "test" ? "silen
  */
 export const logger: Logger = pino({
   level,
-  base: { app: "watchtower", proc: process.env.WATCHTOWER_PROCESS ?? "web" },
+  base: { app: "datastream", proc: process.env.DATASTREAM_PROCESS ?? "web" },
   timestamp: pino.stdTimeFunctions.isoTime,
   redact: {
     paths: ["*.password", "*.token", "*.apiKey", "*.authorization", "*.cookie", "*.xpub", "*.ufvk"],

@@ -27,11 +27,11 @@ export interface Keyring {
 }
 
 export function keyId(master: Buffer): string {
-  return createHash("sha256").update("watchtower-kid").update(master).digest("hex").slice(0, 8);
+  return createHash("sha256").update("datastream-kid").update(master).digest("hex").slice(0, 8);
 }
 
 function subkey(master: Buffer, purpose: "enc" | "fingerprint"): Buffer {
-  return Buffer.from(hkdfSync("sha256", master, Buffer.alloc(0), `watchtower:${purpose}`, 32));
+  return Buffer.from(hkdfSync("sha256", master, Buffer.alloc(0), `datastream:${purpose}`, 32));
 }
 
 export function parseKey(b64: string): Buffer {

@@ -38,7 +38,7 @@ let dummyHash: Promise<string> | undefined;
 export async function verifyPassword(password: string): Promise<boolean> {
   const stored = getPasswordHash();
   if (!stored) {
-    dummyHash ??= hashPassword("watchtower-dummy-password");
+    dummyHash ??= hashPassword("datastream-dummy-password");
     await verify(await dummyHash, password).catch(() => false);
     return false;
   }

@@ -140,7 +140,7 @@ export const transactions = sqliteTable(
     blockTime: integer("block_time"),
     blockHeight: integer("block_height"),
     status: text("status", { enum: ["pending", "confirmed", "failed"] }).notNull(),
-    direction: text("direction", { enum: ["in", "out", "self"] }).notNull(),
+    direction: text("direction", { enum: ["in", "out", "self", "swap"] }).notNull(),
     /** Fee paid by this wallet in the native asset's base units, if any. */
     fee: text("fee"),
     firstSeenAt: integer("first_seen_at", { mode: "timestamp_ms" }).notNull(),

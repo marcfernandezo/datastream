@@ -13,7 +13,7 @@ interface Handle {
 }
 
 // Survive Next dev HMR without leaking connections.
-const g = globalThis as unknown as { __watchtowerDb?: Handle };
+const g = globalThis as unknown as { __datastreamDb?: Handle };
 
 export function openDatabase(file: string): Handle {
   if (file !== ":memory:") mkdirSync(path.dirname(path.resolve(file)), { recursive: true });
@@ -34,10 +34,10 @@ export function runMigrations(db: DB) {
 }
 
 export function getHandle(): Handle {
-  if (!g.__watchtowerDb) {
-    g.__watchtowerDb = openDatabase(process.env.DATABASE_PATH ?? "./data/watchtower.db");
+  if (!g.__datastreamDb) {
+    g.__datastreamDb = openDatabase(process.env.DATABASE_PATH ?? "./data/datastream.db");
   }
-  return g.__watchtowerDb;
+  return g.__datastreamDb;
 }
 
 export function db(): DB {
@@ -46,7 +46,7 @@ export function db(): DB {
 
 /** Test helper: swap in an isolated database. */
 export function setHandleForTests(handle: Handle | undefined) {
-  g.__watchtowerDb = handle;
+  g.__datastreamDb = handle;
 }
 
 export { schema };

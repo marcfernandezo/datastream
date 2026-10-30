@@ -6,7 +6,7 @@ export default function AuthLayout({ children }: LayoutProps<"/">) {
       <Logo className="text-xl" />
       <div className="w-full max-w-sm">{children}</div>
       <p className="max-w-sm text-center text-xs text-muted-foreground">
-        Watch-only. Watchtower never asks for private keys or seed phrases.
+        Watch-only. Datastream never asks for private keys or seed phrases.
       </p>
     </main>
   );

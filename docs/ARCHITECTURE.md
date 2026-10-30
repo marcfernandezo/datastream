@@ -1,4 +1,4 @@
-# Watchtower — Architecture
+# Datastream — Architecture
 
 Watch-only, self-hosted crypto portfolio dashboard. Public addresses, extended
 public keys (xpub/ypub/zpub) and viewing keys (UFVK) only. **There is no field,
@@ -69,7 +69,7 @@ Adding a network = new folder under `src/server/chains/<net>/`, an entry in
 `sessions`, `settings`, `alert_channels`, `alert_log`, `jobs`, `sync_runs`.
 
 Sensitive values (xpub, UFVK, alert channel secrets) are stored as AES-256-GCM
-envelopes `v1.<kid>.<iv>.<ct+tag>` keyed by `WATCHTOWER_ENC_KEY`. Wallet
+envelopes `v1.<kid>.<iv>.<ct+tag>` keyed by `DATASTREAM_ENC_KEY`. Wallet
 dedup uses an HMAC fingerprint, so the plaintext is never needed to check
 uniqueness.
 

@@ -22,7 +22,7 @@ test("first-run setup rejects a wrong token", async ({ page }) => {
 test("setup, sign out, and sign back in", async ({ page, context }) => {
   await signIn(page);
   const cookies = await context.cookies();
-  const session = cookies.find((c) => c.name === "wt_session");
+  const session = cookies.find((c) => c.name === "ds_session");
   expect(session?.httpOnly).toBe(true);
   expect(session?.sameSite).toBe("Strict");
 

@@ -14,7 +14,7 @@ export function LoginForm() {
     <Card>
       <CardHeader>
         <CardTitle>Sign in</CardTitle>
-        <CardDescription>Enter your Watchtower password.</CardDescription>
+        <CardDescription>Enter your Datastream password.</CardDescription>
       </CardHeader>
       <CardContent>
         <form action={action} className="flex flex-col gap-4">

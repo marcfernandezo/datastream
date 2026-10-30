@@ -18,7 +18,7 @@ await build({
   alias: { "server-only": stub },
   external: ["better-sqlite3", "@node-rs/argon2", "pino", "pino-pretty"],
   banner: {
-    js: "import { createRequire as __wtCreateRequire } from 'node:module'; const require = __wtCreateRequire(import.meta.url);",
+    js: "import { createRequire as __dsCreateRequire } from 'node:module'; const require = __dsCreateRequire(import.meta.url);",
   },
   logLevel: "info",
 });

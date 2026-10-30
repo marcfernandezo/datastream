@@ -1,5 +1,5 @@
 /**
- * Watchtower is watch-only. This guard rejects anything that looks like
+ * Datastream is watch-only. This guard rejects anything that looks like
  * private key material *before* it reaches validation, storage or logs.
  * False positives are acceptable; false negatives are not.
  */
@@ -37,7 +37,7 @@ const RULES: { name: string; test: (s: string) => boolean }[] = [
 export class PrivateKeyMaterialError extends Error {
   constructor(public readonly kind: string) {
     super(
-      `This looks like a ${kind}. Watchtower is watch-only and never accepts private keys or seed phrases. Use a public address, xpub/ypub/zpub or viewing key instead.`,
+      `This looks like a ${kind}. Datastream is watch-only and never accepts private keys or seed phrases. Use a public address, xpub/ypub/zpub or viewing key instead.`,
     );
     this.name = "PrivateKeyMaterialError";
   }

@@ -8,8 +8,8 @@ export function keyring(): Keyring {
   if (!ring) {
     const e = env();
     ring = {
-      current: parseKey(e.WATCHTOWER_ENC_KEY),
-      previous: e.WATCHTOWER_ENC_KEY_PREVIOUS ? parseKey(e.WATCHTOWER_ENC_KEY_PREVIOUS) : undefined,
+      current: parseKey(e.DATASTREAM_ENC_KEY),
+      previous: e.DATASTREAM_ENC_KEY_PREVIOUS ? parseKey(e.DATASTREAM_ENC_KEY_PREVIOUS) : undefined,
     };
   }
   return ring;

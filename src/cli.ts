@@ -1,11 +1,11 @@
 /**
- * `pnpm wt <command>` — operational commands run on the server.
+ * `pnpm ds <command>` — operational commands run on the server.
  *
  *   gen-key          print a new random 32-byte encryption key (base64)
- *   set-password     set or reset the login password (prompts, or WT_PASSWORD)
+ *   set-password     set or reset the login password (prompts, or DS_PASSWORD)
  *   revoke-sessions  sign out every session
- *   rotate-key       re-encrypt secrets with WATCHTOWER_ENC_KEY, reading old
- *                    ones with WATCHTOWER_ENC_KEY_PREVIOUS
+ *   rotate-key       re-encrypt secrets with DATASTREAM_ENC_KEY, reading old
+ *                    ones with DATASTREAM_ENC_KEY_PREVIOUS
  *   migrate          apply database migrations
  */
 import { randomBytes } from "node:crypto";
@@ -52,7 +52,7 @@ const commands: Record<string, () => Promise<void>> = {
     await withDb();
     const { setPassword, PASSWORD_MIN_LENGTH } = await import("@/server/auth/password");
     const { deleteAllSessions } = await import("@/server/auth/session");
-    let password = process.env.WT_PASSWORD;
+    let password = process.env.DS_PASSWORD;
     if (!password) {
       password = await promptHidden(`New password (min ${PASSWORD_MIN_LENGTH} chars): `);
       const confirm = await promptHidden("Confirm: ");
@@ -77,7 +77,7 @@ const commands: Record<string, () => Promise<void>> = {
     console.log(
       `Re-encrypted ${result.wallets} wallet(s) and ${result.channels} alert channel(s).`,
     );
-    console.log("You can now remove WATCHTOWER_ENC_KEY_PREVIOUS.");
+    console.log("You can now remove DATASTREAM_ENC_KEY_PREVIOUS.");
   },
 };
 
@@ -85,7 +85,7 @@ async function main() {
   const name = process.argv[2];
   const command = name ? commands[name] : undefined;
   if (!command) {
-    console.error(`Usage: wt <${Object.keys(commands).join("|")}>`);
+    console.error(`Usage: ds <${Object.keys(commands).join("|")}>`);
     process.exit(name ? 1 : 0);
   }
   await command();

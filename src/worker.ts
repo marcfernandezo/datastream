@@ -11,7 +11,7 @@ async function main() {
   runMigrations(db);
   const requeued = requeueInterrupted();
   const runner = startRunner({ handlers, periodic: periodicTasks() });
-  logger.info({ requeued }, "watchtower worker started");
+  logger.info({ requeued }, "datastream worker started");
 
   let stopping = false;
   const shutdown = async (signal: string) => {

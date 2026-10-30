@@ -9,12 +9,12 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: { default: "Watchtower", template: "%s · Watchtower" },
+  title: { default: "Datastream", template: "%s · Datastream" },
   description: "Self-hosted, watch-only crypto portfolio.",
-  applicationName: "Watchtower",
+  applicationName: "Datastream",
   robots: { index: false, follow: false },
   referrer: "no-referrer",
-  appleWebApp: { capable: true, title: "Watchtower", statusBarStyle: "black-translucent" },
+  appleWebApp: { capable: true, title: "Datastream", statusBarStyle: "black-translucent" },
   formatDetection: { telephone: false },
 };
 

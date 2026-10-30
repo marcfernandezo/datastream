@@ -24,7 +24,7 @@ export default function SetupPage() {
         </CardHeader>
         <CardContent>
           <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">
-            pnpm wt set-password
+            pnpm ds set-password
           </pre>
         </CardContent>
       </Card>
