@@ -3,25 +3,17 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ExternalLink, History } from "lucide-react";
 import { z } from "zod";
-import { TokenAmount } from "@/components/amount";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { CopyButton } from "@/components/copy-button";
 import { EmptyState } from "@/components/empty-state";
 import { NetworkBadge, NetworkIcon } from "@/components/network-badge";
 import { SyncStatus } from "@/components/sync-status";
 import { Pagination, TxFilters } from "@/components/tx-filters";
-import { TxTable } from "@/components/tx-table";
+import { TxEur, TxTable } from "@/components/tx-table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { parseTxSearchParams, txQuery } from "@/lib/tx-search-params";
 import { verifySession } from "@/server/auth/dal";
+import { spotPrices, txEurValues } from "@/server/portfolio/queries";
 import { getAdapter } from "@/server/chains/registry";
 import {
   getWallet,
@@ -29,6 +21,7 @@ import {
   walletAssets,
   walletBalances,
 } from "@/server/wallets/queries";
+import { BalancesCard } from "./balances-card";
 import { WalletActions } from "./wallet-actions";
 
 export const metadata: Metadata = { title: "Wallet" };
@@ -49,11 +42,9 @@ export default async function WalletPage({ params, searchParams }: PageProps<"/w
   const { wallet, syncing, source, explorerAddressUrl, nativeAsset } = data;
   const adapter = getAdapter(wallet.network);
   const filters = parseTxSearchParams(await searchParams);
-  const balances = walletBalances(wallet.id)
-    .filter((b) => b.hidden !== true && (BigInt(b.amount) !== 0n || !b.contract))
-    .sort(
-      (a, b) => (a.contract ? 1 : 0) - (b.contract ? 1 : 0) || a.symbol.localeCompare(b.symbol),
-    );
+  const coinIds = walletBalances(wallet.id)
+    .map((b) => b.coingeckoId)
+    .filter((id): id is string => !!id);
   const txs = listTransactions([wallet.id], {
     page: filters.page,
     direction: filters.direction,
@@ -62,6 +53,7 @@ export default async function WalletPage({ params, searchParams }: PageProps<"/w
     from: filters.fromTs,
     to: filters.toTs,
   });
+  const eurValues = txEurValues(txs.rows);
   const hasFilters = !!(
     filters.direction ||
     filters.asset ||
@@ -144,40 +136,11 @@ export default async function WalletPage({ params, searchParams }: PageProps<"/w
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-sm font-medium">Balances</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {balances.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                {wallet.lastSyncedAt ? "No balances." : "Waiting for the first sync…"}
-              </p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Asset</TableHead>
-                    <TableHead className="text-right">Balance</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {balances.map((b) => (
-                    <TableRow key={b.assetId}>
-                      <TableCell>
-                        <div className="font-medium">{b.symbol}</div>
-                        <div className="text-xs text-muted-foreground">{b.name}</div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <TokenAmount amount={b.amount} decimals={b.decimals} symbol={b.symbol} />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+        <BalancesCard
+          balances={walletBalances(wallet.id)}
+          prices={spotPrices(coinIds)}
+          synced={!!wallet.lastSyncedAt}
+        />
       </div>
 
       <Card className="mt-6">
@@ -209,6 +172,7 @@ export default async function WalletPage({ params, searchParams }: PageProps<"/w
             <TxTable
               rows={txs.rows.map((t) => ({
                 ...t,
+                eurValue: <TxEur value={eurValues.get(t.id) ?? null} />,
                 feeDecimals: nativeAsset.decimals,
                 feeSymbol: nativeAsset.symbol,
                 explorerUrl: adapter.explorerUrl("tx", t.txid),

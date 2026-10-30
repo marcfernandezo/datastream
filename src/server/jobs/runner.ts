@@ -31,7 +31,7 @@ export function startRunner({
     for (const task of periodic) {
       const last = lastScheduled.get(task.kind) ?? 0;
       if (now - last >= task.everyMs) {
-        enqueue(task.kind, task.payload ?? {}, { key: `periodic:${task.kind}` });
+        enqueue(task.kind, task.payload ?? {}, { key: `${task.kind}` });
         lastScheduled.set(task.kind, now);
       }
     }

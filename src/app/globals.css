@@ -128,3 +128,55 @@
     @apply font-sans;
   }
 }
+
+/* ── Data viz tokens (validated: dataviz palette, adjacent CVD ΔE ≥ 8 in both modes) ── */
+:root {
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+  --series-6: #008300;
+  --series-other: #b5b3ab;
+  --viz-grid: #e1e0d9;
+  --viz-axis: #898781;
+  --delta-up: #006300;
+  --delta-down: #c42f2f;
+}
+.dark {
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
+  --series-6: #008300;
+  --series-other: #5f5e59;
+  --viz-grid: #2c2c2a;
+  --viz-axis: #898781;
+  --delta-up: #0ca30c;
+  --delta-down: #e66767;
+}
+
+/* ── Privacy mode: masks every [data-private] value (shoulder-surfing protection) ── */
+[data-private] {
+  position: relative;
+}
+html[data-privacy="on"] [data-private],
+html[data-privacy="on"] [data-private] * {
+  color: transparent !important;
+  user-select: none;
+}
+html[data-privacy="on"] [data-private]::after {
+  content: "••••••";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: inherit;
+  color: var(--muted-foreground);
+  letter-spacing: 0.1em;
+  overflow: hidden;
+}
+html[data-privacy="on"] [data-private-hide] {
+  visibility: hidden;
+}

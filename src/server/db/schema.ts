@@ -252,3 +252,17 @@ export const jobs = sqliteTable(
   },
   (t) => [index("jobs_status_run_idx").on(t.status, t.runAfter), index("jobs_key_idx").on(t.key)],
 );
+
+/** CoinGecko's platform listing: token contract/mint → coin id. Refreshed daily. */
+export const tokenMap = sqliteTable(
+  "token_map",
+  {
+    network: text("network").notNull(),
+    /** Lowercase for EVM, case-sensitive base58 for Solana. */
+    contract: text("contract").notNull(),
+    coingeckoId: text("coingecko_id").notNull(),
+    symbol: text("symbol").notNull(),
+    name: text("name").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.network, t.contract] })],
+);

@@ -14,6 +14,7 @@ import {
   enqueueSync,
   renameWallet,
   setArchived,
+  setAssetHidden,
 } from "@/server/wallets/service";
 
 export type WalletFormState = { error?: string; ok?: boolean } | undefined;
@@ -85,4 +86,16 @@ export async function deleteWalletAction(id: string) {
   deleteWallet(idSchema.parse(id));
   revalidatePath("/wallets");
   redirect("/wallets");
+}
+
+const assetIdSchema = z
+  .string()
+  .max(120)
+  .regex(/^[a-z]+(:[A-Za-z0-9]+)?$/);
+
+/** hide=true hides a token everywhere; hide=false shows it even if unpriced. */
+export async function setAssetVisibilityAction(assetId: string, hide: boolean) {
+  await authorizeAction();
+  setAssetHidden(assetIdSchema.parse(assetId), hide);
+  revalidatePath("/", "layout");
 }

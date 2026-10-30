@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, ExternalLink, Repeat } from "lucide-react";
-import { TokenAmount } from "@/components/amount";
+import { Private, TokenAmount } from "@/components/amount";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -10,7 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatTimestamp, shortHash } from "@/lib/format";
+import { formatEur, formatTimestamp, shortHash } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export interface TxRowView {
@@ -133,5 +133,16 @@ export function TxTable({ rows, showWallet = false }: { rows: TxRowView[]; showW
         </TableBody>
       </Table>
     </div>
+  );
+}
+
+/** EUR value at the time of the transaction (daily close). */
+export function TxEur({ value }: { value: number | null }) {
+  if (value === null) return null;
+  return (
+    <Private className="text-xs text-muted-foreground">
+      {value >= 0 ? "" : "−"}
+      {formatEur(Math.abs(value))}
+    </Private>
   );
 }

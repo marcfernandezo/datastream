@@ -94,3 +94,7 @@ export function deleteWallet(id: string) {
   db().delete(schema.wallets).where(eq(schema.wallets.id, id)).run();
   logger.info({ walletId: id }, "wallet deleted");
 }
+
+export function setAssetHidden(assetId: string, hidden: boolean) {
+  db().update(schema.assets).set({ hidden }).where(eq(schema.assets.id, assetId)).run();
+}

@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { Providers } from "@/components/providers";
+import { ServiceWorkerRegister } from "@/components/sw-register";
+import { PRIVACY_COOKIE } from "@/server/auth/cookie";
 import "./globals.css";
 
 // next/font downloads at build time and self-hosts; no runtime request to Google.
@@ -16,6 +18,10 @@ export const metadata: Metadata = {
   referrer: "no-referrer",
   appleWebApp: { capable: true, title: "Datastream", statusBarStyle: "black-translucent" },
   formatDetection: { telephone: false },
+  icons: {
+    icon: [{ url: "/icons/favicon-32.png", sizes: "32x32", type: "image/png" }],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }],
+  },
 };
 
 export const viewport: Viewport = {
@@ -30,14 +36,19 @@ export const viewport: Viewport = {
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const nonce = (await headers()).get("x-nonce") ?? undefined;
+  const privacy = (await cookies()).get(PRIVACY_COOKIE)?.value === "1";
   return (
     <html
       lang="en"
       suppressHydrationWarning
+      data-privacy={privacy ? "on" : "off"}
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full">
-        <Providers nonce={nonce}>{children}</Providers>
+        <Providers nonce={nonce} privacy={privacy}>
+          {children}
+          <ServiceWorkerRegister />
+        </Providers>
       </body>
     </html>
   );

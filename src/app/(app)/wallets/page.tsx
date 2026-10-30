@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Archive, Wallet } from "lucide-react";
-import { TokenAmount } from "@/components/amount";
+import { Private, TokenAmount } from "@/components/amount";
 import { EmptyState } from "@/components/empty-state";
 import { NetworkIcon } from "@/components/network-badge";
 import { PageHeader } from "@/components/page-header";
@@ -10,6 +10,8 @@ import { Card } from "@/components/ui/card";
 import { verifySession } from "@/server/auth/dal";
 import { getAdapter } from "@/server/chains/registry";
 import { listWallets } from "@/server/wallets/queries";
+import { isVisible, walletValues } from "@/server/portfolio/queries";
+import { formatEur } from "@/lib/format";
 import { AddWalletDialog } from "./add-wallet-dialog";
 import { networkOptions } from "./network-options";
 
@@ -19,6 +21,7 @@ export default async function WalletsPage({ searchParams }: PageProps<"/wallets"
   await verifySession();
   const showArchived = (await searchParams).archived === "1";
   const wallets = listWallets({ includeArchived: showArchived });
+  const values = walletValues();
   const add = <AddWalletDialog networks={networkOptions()} />;
 
   return (
@@ -51,7 +54,8 @@ export default async function WalletsPage({ searchParams }: PageProps<"/wallets"
           {wallets.map((w) => {
             const native = getAdapter(w.network).nativeAsset;
             const nativeBalance = w.balances.find((b) => b.assetId === native.id)?.amount ?? "0";
-            const tokenCount = w.balances.filter((b) => b.contract && b.hidden !== true).length;
+            const value = values.get(w.id);
+            const tokenCount = w.balances.filter((b) => b.contract && isVisible(b)).length;
             return (
               <li key={w.id}>
                 <Link href={`/wallets/${w.id}`} className="group block focus-visible:outline-none">
@@ -72,26 +76,27 @@ export default async function WalletsPage({ searchParams }: PageProps<"/wallets"
                       >
                         {w.displayHint}
                       </div>
-                    </div>
-                    <div className="flex flex-col items-end gap-1 text-right">
-                      <TokenAmount
-                        amount={nativeBalance}
-                        decimals={native.decimals}
-                        symbol={native.symbol}
-                        maxFraction={6}
-                        className="text-sm font-medium"
-                      />
-                      {tokenCount > 0 ? (
-                        <span className="text-xs text-muted-foreground">
-                          +{tokenCount} token{tokenCount === 1 ? "" : "s"}
-                        </span>
-                      ) : (
+                      {(w.syncing || w.lastSyncError || !w.lastSyncedAt) && (
                         <SyncStatus
                           syncing={w.syncing}
                           lastSyncedAt={w.lastSyncedAt}
                           error={w.lastSyncError}
                         />
                       )}
+                    </div>
+                    <div className="flex flex-col items-end gap-1 text-right">
+                      {value !== undefined && value > 0 ? (
+                        <Private className="text-sm font-medium">{formatEur(value)}</Private>
+                      ) : null}
+                      <span className="text-xs text-muted-foreground">
+                        <TokenAmount
+                          amount={nativeBalance}
+                          decimals={native.decimals}
+                          symbol={native.symbol}
+                          maxFraction={6}
+                        />
+                        {tokenCount > 0 && ` +${tokenCount} token${tokenCount === 1 ? "" : "s"}`}
+                      </span>
                     </div>
                   </Card>
                 </Link>

@@ -1,5 +1,6 @@
 import { LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PrivacyToggle } from "@/components/privacy";
 import { Logo } from "@/components/shell/logo";
 import { MobileNav } from "@/components/shell/mobile-nav";
 import { Nav } from "@/components/shell/nav";
@@ -25,6 +26,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
             <Logo />
           </div>
           <div id="header-actions" className="ml-auto flex items-center gap-1">
+            <PrivacyToggle />
             <ThemeToggle />
             {viewer.kind === "session" && (
               <form action={logout}>
