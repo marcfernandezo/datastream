@@ -11,7 +11,7 @@
     "start:worker": "DATASTREAM_PROCESS=worker node .next/standalone/dist/worker.mjs",
     "ds": "node --conditions=react-server --env-file-if-exists=.env --import tsx src/cli.ts",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
