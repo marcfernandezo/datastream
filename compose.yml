@@ -1,0 +1,105 @@
+# Datastream on a Raspberry Pi / mini PC.
+#   1. cp .env.example .env   and fill it in (DATASTREAM_ENC_KEY, SETUP_TOKEN…)
+#   2. mkdir -p data && sudo chown 1000:1000 data
+#   3. docker compose up -d --build
+name: datastream
+
+x-app: &app
+  build: .
+  image: datastream:local
+  restart: unless-stopped
+  env_file: .env
+  environment:
+    # Caddy overwrites X-Forwarded-For with the real client IP.
+    TRUST_PROXY: "true"
+  volumes:
+    - ${DATASTREAM_DATA_DIR:-./data}:/data
+  read_only: true
+  tmpfs:
+    - /tmp
+  cap_drop: [ALL]
+  security_opt:
+    - no-new-privileges:true
+  logging:
+    driver: local
+    options:
+      max-size: 10m
+      max-file: "3"
+
+services:
+  web:
+    <<: *app
+    expose: ["3000"]
+
+  worker:
+    <<: *app
+    command: ["node", "dist/worker.mjs"]
+    environment:
+      TRUST_PROXY: "true"
+      DATASTREAM_PROCESS: worker
+    depends_on:
+      web:
+        condition: service_healthy # web applies migrations at startup
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "const t=+require('fs').readFileSync('/tmp/datastream-worker.alive','utf8');process.exit(Date.now()-t<60000?0:1)"
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+
+  # Shielded Zcash (optional): docker compose --profile zcash up -d --build
+  # Reachable only on the compose network; nothing is published to the host.
+  zcash-viewer:
+    profiles: ["zcash"]
+    build: ./sidecars/zcash-viewer
+    image: datastream-zcash-viewer:local
+    restart: unless-stopped
+    # Only what it needs: the sidecar never sees DATASTREAM_ENC_KEY.
+    environment:
+      ZCASH_VIEWER_TOKEN: ${ZCASH_VIEWER_TOKEN:-}
+      ZCASH_VIEWER_DB_KEY: ${ZCASH_VIEWER_DB_KEY:-}
+      LIGHTWALLETD_URL: ${LIGHTWALLETD_URL:-https://zec.rocks:443}
+      ZCASH_SYNC_INTERVAL_SECS: ${ZCASH_SYNC_INTERVAL_SECS:-120}
+      ZCASH_SYNC_BATCH_SIZE: ${ZCASH_SYNC_BATCH_SIZE:-200}
+    expose: ["8232"]
+    volumes:
+      # Rebuildable from the chain (the viewing keys live in Datastream's DB);
+      # not part of the SQLite backups.
+      - zcash_data:/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    stop_grace_period: 20s
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: local
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DATASTREAM_DOMAIN: ${DATASTREAM_DOMAIN:-datastream.local}
+      DATASTREAM_TLS: ${DATASTREAM_TLS:-internal}
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+
+volumes:
+  caddy_data:
+  caddy_config:
+  zcash_data:

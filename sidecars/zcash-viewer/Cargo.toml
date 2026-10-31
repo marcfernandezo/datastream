@@ -1,0 +1,40 @@
+[package]
+name = "zcash-viewer"
+version = "0.1.0"
+edition = "2024"
+description = "Watch-only Zcash light client sidecar for Datastream (UFVK import + lightwalletd sync)"
+publish = false
+
+[dependencies]
+anyhow = "1.0.104"
+async-trait = "0.1"
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "query", "tokio", "tracing"] }
+base64 = "0.22"
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+rand = "0.10"
+# SQLCipher (vendored OpenSSL) so the wallet DB, which holds the viewing keys,
+# is encrypted at rest. This feature unifies with zcash_client_sqlite's rusqlite.
+rusqlite = { version = "0.37", features = ["bundled-sqlcipher-vendored-openssl", "uuid"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+subtle = "2.6"
+tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "signal", "time", "sync", "net"] }
+tonic = { version = "0.14", default-features = false, features = ["channel", "tls-ring", "tls-webpki-roots"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json"] }
+uuid = "1"
+zcash_client_backend = { version = "0.25", features = ["sync", "lightwalletd-tonic", "orchard", "transparent-inputs"] }
+zcash_client_sqlite = { version = "0.23", features = ["orchard", "transparent-inputs"] }
+zcash_keys = { version = "0.17", features = ["orchard", "transparent-inputs"] }
+zcash_primitives = "0.31"
+zcash_protocol = "0.11"
+
+[profile.release]
+lto = "thin"
+codegen-units = 4
+strip = true
+panic = "abort"
+
+# The proving/scanning crates are unbearably slow unoptimized; keep tests usable.
+[profile.dev.package."*"]
+opt-level = 2

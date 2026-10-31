@@ -39,3 +39,15 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# datastream
+/data
+/dist
+/playwright-report
+/test-results
+!.env.example
+/scripts/.*
+
+# rust sidecars
+/sidecars/*/target/
+/sidecars/*/dev.db*

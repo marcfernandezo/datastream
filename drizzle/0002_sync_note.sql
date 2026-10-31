@@ -1,0 +1,1 @@
+ALTER TABLE `wallets` ADD `sync_note` text;

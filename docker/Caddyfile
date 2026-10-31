@@ -1,0 +1,15 @@
+# Reverse proxy in front of Datastream: TLS + a trustworthy X-Forwarded-For.
+# Caddy ignores X-Forwarded-For sent by clients and sets the real peer IP,
+# which is what lets the app enforce ALLOWED_CIDRS (TRUST_PROXY=true).
+{
+	admin off
+	# No access logs by default: they'd record which wallets you open.
+}
+
+{$DATASTREAM_DOMAIN:datastream.local} {
+	# "internal" = Caddy's local CA (install its root cert on your devices),
+	# or set DATASTREAM_TLS to your email to get a public ACME certificate.
+	tls {$DATASTREAM_TLS:internal}
+	encode zstd gzip
+	reverse_proxy web:3000
+}
