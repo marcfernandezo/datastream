@@ -41,6 +41,7 @@ export function AddWalletDialog({ networks }: { networks: NetworkOption[] }) {
   // Controlled so values survive React's post-action form reset when there's an error.
   const [label, setLabel] = useState("");
   const [scriptType, setScriptType] = useState("auto");
+  const [birthday, setBirthday] = useState("");
   const [state, action, pending] = useActionState(addWallet, undefined);
   const current = networks.find((n) => n.id === network) ?? networks[0]!;
   const kind = input.trim() ? detectSourceKind(network, input) : null;
@@ -115,6 +116,25 @@ export function AddWalletDialog({ networks }: { networks: NetworkOption[] }) {
               <p className="text-xs text-muted-foreground">
                 Ledger Live and some wallets export every account type as <code>xpub</code>.
                 Auto-detect checks which type has history.
+              </p>
+            </div>
+          )}
+          {kind === "ufvk" && (
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="birthday">Wallet birthday (optional)</Label>
+              <Input
+                id="birthday"
+                name="birthday"
+                inputMode="numeric"
+                maxLength={10}
+                placeholder="YYYY-MM-DD or block height"
+                value={birthday}
+                onChange={(e) => setBirthday(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                When the wallet was created. Scanning starts there, so an accurate date makes the
+                first sync much faster. Blank scans from May 2022 (Orchard activation), which can
+                take hours on a Raspberry Pi.
               </p>
             </div>
           )}

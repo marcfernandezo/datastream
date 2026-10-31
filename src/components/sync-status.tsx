@@ -6,15 +6,22 @@ export function SyncStatus({
   syncing,
   lastSyncedAt,
   error,
+  note,
 }: {
   syncing: boolean;
   lastSyncedAt: Date | null;
   error: string | null;
+  /** Progress of a deferred sync, e.g. a first shielded scan. */
+  note?: string | null;
 }) {
   if (syncing) {
     return (
-      <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-        <Loader2 className="size-3 animate-spin" aria-hidden /> Syncing…
+      <span
+        className="inline-flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground"
+        role="status"
+      >
+        <Loader2 className="size-3 shrink-0 animate-spin" aria-hidden />
+        <span className="truncate">{note ? `${note}…` : "Syncing…"}</span>
       </span>
     );
   }

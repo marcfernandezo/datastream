@@ -82,6 +82,9 @@ export const envSchema = z
     ZEC_EXPLORER_URL: url("https://blockchair.com/zcash"),
     /** Blockchair's free tier allows ~1440 requests/day. */
     ZEC_EXPLORER_RPS: z.coerce.number().positive().max(100).default(0.5),
+    /** Shielded Zcash: the zcash-viewer sidecar (compose profile `zcash`). Unset disables UFVKs. */
+    ZCASH_VIEWER_URL: optionalString.pipe(z.url({ protocol: /^https?$/ }).optional()),
+    ZCASH_VIEWER_TOKEN: optionalString,
 
     COINGECKO_API_KEY: optionalString,
     COINGECKO_API_TIER: z.enum(["demo", "pro"]).default("demo"),
@@ -109,6 +112,13 @@ export const envSchema = z
         code: "custom",
         path: ["ALCHEMY_API_KEY"],
         message: "required for ETH_PROVIDER=alchemy",
+      });
+    }
+    if (env.ZCASH_VIEWER_URL && (env.ZCASH_VIEWER_TOKEN?.length ?? 0) < 32) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["ZCASH_VIEWER_TOKEN"],
+        message: "required with ZCASH_VIEWER_URL, at least 32 characters (openssl rand -hex 32)",
       });
     }
     if (env.SOL_PROVIDER === "helius" && !env.HELIUS_API_KEY) {

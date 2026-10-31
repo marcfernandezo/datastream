@@ -9,11 +9,18 @@ import {
   type SyncContext,
 } from "../types";
 import { newestFirst } from "../util";
+import {
+  createShieldedClient,
+  displayUfvk,
+  parseBirthday,
+  parseUfvk,
+  type ZcashViewerConfig,
+} from "./shielded";
 
 /**
- * Zcash transparent addresses via a Blockchair-compatible explorer API.
- * Isolated module: shielded support (UFVK + lightwalletd) will live in a
- * separate sidecar and must not change this adapter's contract.
+ * Zcash. Transparent addresses go to a Blockchair-compatible explorer API;
+ * Unified Full Viewing Keys go to the zcash-viewer sidecar (see shielded.ts),
+ * which is optional. Both paths share the network's ChainAdapter contract.
  */
 
 export const ZEC: AssetInfo = {
@@ -80,11 +87,15 @@ export interface ZcashConfig {
   apiKey: string | undefined;
   explorerUrl: string;
   rps: number;
+  /** Shielded support. Without it, viewing keys are rejected with a pointer to the docs. */
+  viewer?: ZcashViewerConfig;
 }
 
 const parseTime = (t: string) => Math.floor(Date.parse(`${t.replace(" ", "T")}Z`) / 1000);
 
 export function createZcashAdapter(cfg: ZcashConfig): ChainAdapter {
+  const shielded = cfg.viewer ? createShieldedClient(cfg.viewer, ZEC) : undefined;
+
   async function get<T>(
     ctx: SyncContext,
     path: string,
@@ -124,22 +135,31 @@ export function createZcashAdapter(cfg: ZcashConfig): ChainAdapter {
     network: "zec",
     label: "Zcash",
     nativeAsset: ZEC,
-    supportedSources: ["address"],
+    supportedSources: ["address", "ufvk"],
     initialMaxPages: 10,
 
-    parseSource(kind, input) {
+    parseSource(kind, input, options) {
       if (kind === "ufvk") {
-        throw new SourceValidationError(
-          "Shielded viewing keys aren't supported yet. Add a transparent address (t1…/t3…/tex1…) for now.",
-        );
+        if (!shielded) {
+          throw new SourceValidationError(
+            "Shielded viewing keys need the zcash-viewer sidecar (README → Shielded Zcash). Add a transparent address (t1…/t3…/tex1…) instead.",
+          );
+        }
+        const value = parseUfvk(input);
+        const birthdayHeight = parseBirthday(options.birthday);
+        return {
+          source: { kind, value, options: birthdayHeight ? { birthdayHeight } : {} },
+          displayHint: displayUfvk(value),
+        };
       }
       if (kind !== "address")
-        throw new SourceValidationError("Zcash supports transparent addresses.");
+        throw new SourceValidationError("Zcash supports transparent addresses and viewing keys.");
       const value = parseZcashTransparent(input);
       return { source: { kind, value, options: {} }, displayHint: maskValue(value) };
     },
 
     async getBalance(ctx, src) {
+      if (src.kind === "ufvk") return requireShielded().getBalance(ctx, src);
       const cached = ctx.memo.get("zec:first") as AddressDashboard | undefined;
       const d = cached ?? (await dashboard(ctx, src.value, 0));
       return [{ asset: ZEC, amount: BigInt(d.address.balance) }];
@@ -150,6 +170,7 @@ export function createZcashAdapter(cfg: ZcashConfig): ChainAdapter {
     },
 
     async getTransactions(ctx, src, opts) {
+      if (src.kind === "ufvk") return requireShielded().getTransactions(ctx, src, opts);
       const rows: AddressDashboard["transactions"] = [];
       for (let page = 0; page < opts.maxPages; page++) {
         const d = await dashboard(ctx, src.value, page * PAGE);
@@ -195,5 +216,15 @@ export function createZcashAdapter(cfg: ZcashConfig): ChainAdapter {
     explorerUrl(kind, id) {
       return `${cfg.explorerUrl.replace(/\/$/, "")}/${kind === "tx" ? "transaction" : "address"}/${id}`;
     },
+
+    async forget(ctx, state) {
+      // Only viewing-key wallets leave anything behind (in the sidecar).
+      if (shielded && typeof state.viewerAccountId === "string") await shielded.forget(ctx, state);
+    },
   };
+
+  function requireShielded() {
+    if (!shielded) throw new Error("Shielded Zcash is disabled: ZCASH_VIEWER_URL is not set");
+    return shielded;
+  }
 }

@@ -109,7 +109,7 @@ describe("zcash adapter (blockchair)", () => {
     expect(txs[2]!.movements[0]!.amount).toBe(100_291_953n);
   });
 
-  it("surfaces explorer errors and explains viewing keys aren't supported yet", async () => {
+  it("surfaces explorer errors and points viewing keys at the sidecar", async () => {
     server.use(
       http.get(`${API}/dashboards/address/:addr`, () =>
         HttpResponse.json({ data: null, context: { code: 430, error: "Rate limit" } }),
@@ -117,6 +117,7 @@ describe("zcash adapter (blockchair)", () => {
     );
     const { source } = zec.parseSource("address", T1, {});
     await expect(zec.getBalance(makeCtx(), source)).rejects.toThrow(/430/);
-    expect(() => zec.parseSource("ufvk", "uview1abc", {})).toThrow(/aren't supported yet/);
+    // No `viewer` configured: see zcash-shielded.test.ts for the sidecar path.
+    expect(() => zec.parseSource("ufvk", "uview1abc", {})).toThrow(/zcash-viewer sidecar/);
   });
 });

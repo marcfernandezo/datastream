@@ -69,6 +69,34 @@ export function complete(id: number) {
     .run();
 }
 
+/**
+ * Thrown by a handler when the job can't finish yet but nothing failed (e.g.
+ * a first shielded scan still running). The job is requeued after `delayMs`
+ * without using up an attempt.
+ */
+export class RetryLaterError extends Error {
+  constructor(
+    message: string,
+    public readonly delayMs: number,
+  ) {
+    super(message);
+    this.name = "RetryLaterError";
+  }
+}
+
+export function reschedule(job: Job, delayMs: number) {
+  db()
+    .update(schema.jobs)
+    .set({
+      status: "queued",
+      error: null,
+      attempts: Math.max(0, job.attempts - 1),
+      runAfter: new Date(Date.now() + delayMs),
+    })
+    .where(eq(schema.jobs.id, job.id))
+    .run();
+}
+
 /** Retries with exponential backoff (30s, 1m, 2m, 4m) until MAX_ATTEMPTS. */
 export function fail(job: Job, error: string) {
   const retry = job.attempts < MAX_ATTEMPTS;

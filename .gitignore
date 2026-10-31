@@ -47,3 +47,7 @@ next-env.d.ts
 /test-results
 !.env.example
 /scripts/.*
+
+# rust sidecars
+/sidecars/*/target/
+/sidecars/*/dev.db*

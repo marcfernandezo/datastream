@@ -1,6 +1,12 @@
 import { and, eq, inArray, lt } from "drizzle-orm";
 import { getAdapter } from "@/server/chains/registry";
-import type { AssetAmount, AssetInfo, NormalizedTx, WalletSource } from "@/server/chains/types";
+import {
+  SyncPendingError,
+  type AssetAmount,
+  type AssetInfo,
+  type NormalizedTx,
+  type WalletSource,
+} from "@/server/chains/types";
 import { AAD, open } from "@/server/crypto/keyring";
 import { db, getHandle, schema } from "@/server/db/client";
 import type { HttpClient } from "@/server/http/client";
@@ -86,9 +92,20 @@ export async function syncWallet(
     ];
   } catch (err) {
     const message = maskSensitive(err instanceof Error ? err.message : String(err)).slice(0, 300);
+    if (err instanceof SyncPendingError) {
+      // Nothing partial is stored; only progress and the adapter's state
+      // (which may hold a provider-side id that deletion must release).
+      db()
+        .update(schema.wallets)
+        .set({ syncNote: message, lastSyncError: null, syncState: ctx.state })
+        .where(eq(schema.wallets.id, walletId))
+        .run();
+      log.debug({ note: message }, "wallet sync pending");
+      throw err;
+    }
     db()
       .update(schema.wallets)
-      .set({ lastSyncError: message })
+      .set({ lastSyncError: message, syncNote: null })
       .where(eq(schema.wallets.id, walletId))
       .run();
     throw err;
@@ -213,7 +230,13 @@ function persist(
 
     db()
       .update(schema.wallets)
-      .set({ syncState: state, lastSyncedAt: now, lastSyncError: null, initialSyncDone: true })
+      .set({
+        syncState: state,
+        lastSyncedAt: now,
+        lastSyncError: null,
+        syncNote: null,
+        initialSyncDone: true,
+      })
       .where(eq(schema.wallets.id, wallet.id))
       .run();
   })();

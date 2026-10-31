@@ -45,12 +45,16 @@ export async function addWallet(
   let id: string;
   try {
     await authorizeAction();
-    const scriptType = formData.get("scriptType");
+    const options: Record<string, string> = {};
+    for (const key of ["scriptType", "birthday"]) {
+      const v = formData.get(key);
+      if (typeof v === "string" && v.trim()) options[key] = v.trim();
+    }
     ({ id } = createWallet({
       network: formData.get("network"),
       input: formData.get("input"),
       label: formData.get("label"),
-      options: typeof scriptType === "string" && scriptType ? { scriptType } : {},
+      options,
     }));
   } catch (err) {
     return { error: toMessage(err) };

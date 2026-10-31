@@ -5,7 +5,8 @@ import { z } from "zod";
 import { env } from "@/env";
 import { dispatchAlerts } from "@/server/alerts/service";
 import { purgeExpiredSessions } from "@/server/auth/session";
-import { sharedHttp } from "@/server/chains/registry";
+import { getAdapter, isNetwork, sharedHttp } from "@/server/chains/registry";
+import { SyncPendingError } from "@/server/chains/types";
 import { db, getHandle, schema } from "@/server/db/client";
 import { createBackup, pruneBackups } from "@/server/backup/backup";
 import { keyring } from "@/server/crypto/keyring";
@@ -20,7 +21,7 @@ import {
 } from "@/server/prices/service";
 import { enqueueSync } from "@/server/wallets/service";
 import { syncWallet } from "@/server/wallets/sync";
-import { enqueue, pruneJobs } from "./queue";
+import { enqueue, pruneJobs, RetryLaterError } from "./queue";
 import type { JobHandler, PeriodicTask } from "./runner";
 
 export const handlers: Record<string, JobHandler> = {
@@ -47,12 +48,32 @@ export const handlers: Record<string, JobHandler> = {
       .from(schema.wallets)
       .where(eq(schema.wallets.id, walletId))
       .get()?.done;
-    const { newTxIds } = await syncWallet(walletId, { http: sharedHttp(), signal });
+    let newTxIds: number[];
+    try {
+      ({ newTxIds } = await syncWallet(walletId, { http: sharedHttp(), signal }));
+    } catch (err) {
+      // syncWallet already recorded the progress note and adapter state.
+      if (err instanceof SyncPendingError) throw new RetryLaterError(err.message, err.retryAfterMs);
+      throw err;
+    }
     if (newTxIds.length) enqueue("alerts.dispatch", { txIds: newTxIds });
     // Price new assets right away; a first sync also needs history + backfill.
     enqueue("prices.refresh", {}, { key: "prices.refresh" });
     if (wasInitial)
       enqueue("prices.daily", {}, { key: "prices.daily", runAfter: new Date(Date.now() + 10_000) });
+  },
+
+  /** After a wallet is deleted: let the adapter release provider-side data. */
+  async "wallet.forget"(job, signal) {
+    const payload = z
+      .object({ network: z.string(), state: z.record(z.string(), z.unknown()) })
+      .parse(job.payload);
+    if (!isNetwork(payload.network)) return;
+    const adapter = getAdapter(payload.network);
+    await adapter.forget?.(
+      { http: sharedHttp(), signal, log: logger.child({ job: "wallet.forget" }) },
+      payload.state,
+    );
   },
 
   async "maintenance.backup"() {

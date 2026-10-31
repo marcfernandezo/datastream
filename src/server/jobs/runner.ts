@@ -1,5 +1,5 @@
 import { logger } from "@/server/log/logger";
-import { claimNext, complete, enqueue, fail, type Job } from "./queue";
+import { claimNext, complete, enqueue, fail, reschedule, RetryLaterError, type Job } from "./queue";
 
 export type JobHandler = (job: Job, signal: AbortSignal) => Promise<void>;
 
@@ -51,6 +51,11 @@ export function startRunner({
       complete(job.id);
       log.debug({ ms: Date.now() - started }, "job done");
     } catch (err) {
+      if (err instanceof RetryLaterError && !controller.signal.aborted) {
+        reschedule(job, err.delayMs);
+        log.debug({ delayMs: err.delayMs }, "job deferred");
+        return;
+      }
       const message = err instanceof Error ? err.message : String(err);
       const retrying = fail(job, message.slice(0, 1000));
       log.warn({ err, retrying }, "job failed");

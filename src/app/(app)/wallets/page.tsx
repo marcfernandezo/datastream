@@ -134,6 +134,7 @@ export default async function WalletsPage({ searchParams }: PageProps<"/wallets"
                           syncing={w.syncing}
                           lastSyncedAt={w.lastSyncedAt}
                           error={w.lastSyncError}
+                          note={w.syncNote}
                         />
                       )}
                     </div>

@@ -90,8 +90,20 @@ export function setArchived(id: string, archived: boolean) {
 }
 
 export function deleteWallet(id: string) {
+  const wallet = db()
+    .select({ network: schema.wallets.network, syncState: schema.wallets.syncState })
+    .from(schema.wallets)
+    .where(eq(schema.wallets.id, id))
+    .get();
+  if (!wallet) return;
   // Cascades to balances, transactions, movements, group links and alert logs.
   db().delete(schema.wallets).where(eq(schema.wallets.id, id)).run();
+  // Provider-side cleanup (e.g. the shielded sidecar's copy of a viewing key)
+  // runs in the worker: the web process makes no outbound calls.
+  const adapter = getAdapters().get(wallet.network as never);
+  if (adapter?.forget && Object.keys(wallet.syncState).length > 0) {
+    enqueue("wallet.forget", { network: wallet.network, state: wallet.syncState });
+  }
   logger.info({ walletId: id }, "wallet deleted");
 }
 

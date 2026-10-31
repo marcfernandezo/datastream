@@ -62,6 +62,10 @@ function build(): Map<NetworkId, ChainAdapter> {
       apiKey: e.ZEC_EXPLORER_API_KEY,
       explorerUrl: e.ZEC_EXPLORER_URL,
       rps: e.ZEC_EXPLORER_RPS,
+      viewer:
+        e.ZCASH_VIEWER_URL && e.ZCASH_VIEWER_TOKEN
+          ? { url: e.ZCASH_VIEWER_URL, token: e.ZCASH_VIEWER_TOKEN }
+          : undefined,
     }),
   ];
   return new Map(list.map((a) => [a.network, a]));

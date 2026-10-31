@@ -28,7 +28,7 @@ function errorCause(err: unknown): string {
 }
 
 export interface RequestOptions {
-  method?: "GET" | "POST";
+  method?: "GET" | "POST" | "DELETE";
   headers?: Record<string, string>;
   body?: unknown;
   signal?: AbortSignal;
@@ -153,6 +153,7 @@ export function createHttpClient(cfg: ClientConfig): HttpClient {
           await res.body?.cancel();
           throw new HttpError(`${where} responded ${res.status}`, res.status, false);
         }
+        if (res.status === 204) return undefined as T;
         return (await res.json()) as T;
       } catch (err) {
         if (err instanceof HttpError && !err.retryable) throw err;

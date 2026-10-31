@@ -7,3 +7,4 @@ drizzle/meta
 playwright-report
 test-results
 src/components/ui
+sidecars/*/target

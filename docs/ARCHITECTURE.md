@@ -29,7 +29,13 @@ Zcash spending keys) are rejected before they touch validation, storage or logs
                └──────────┬────────────────┴───────────┬───────────────┘
                    SQLite (WAL) on /data               │
                                                        ▼
-          Esplora · Etherscan/Alchemy · Solana RPC/Helius · CoinGecko · ntfy/Telegram
+          Esplora · Etherscan/Alchemy · Solana RPC/Helius · Blockchair · CoinGecko · ntfy/Telegram
+                                                       │
+                                  ┌────────────────────▼──────────────────────┐
+                                  │  zcash-viewer (optional, Rust)            │
+                                  │  view-only UFVK accounts, SQLCipher DB,   │
+                                  │  sync loop ──gRPC/TLS──▶ lightwalletd     │
+                                  └───────────────────────────────────────────┘
 ```
 
 - The **web** process renders from SQLite only. "Sync now" enqueues a job.
@@ -61,7 +67,32 @@ interface ChainAdapter {
 | BTC | address, x/y/zpub | Esplora. Receive + change scan with gap limit; script-type auto-detect for xpubs |
 | ETH | address           | Etherscan v2 or Alchemy: ETH, internal txs, ERC-20, fees                         |
 | SOL | address           | JSON-RPC (Helius DAS optional): SOL, SPL, fees                                   |
-| ZEC | t1/t3/tex address | Blockchair-compatible API; UFVK (shielded) planned via a sidecar + lightwalletd  |
+| ZEC | t1/t3/tex, UFVK   | Transparent: Blockchair-compatible API. UFVK: zcash-viewer sidecar (below)       |
+
+Adapters may throw `SyncPendingError` when the provider can't answer completely
+yet. The sync is then deferred (`RetryLaterError`, no attempt used), only the
+progress note and adapter state are saved, and no partial history is stored.
+`forget(state)` runs in the worker after a wallet is deleted.
+
+### Shielded Zcash sidecar
+
+`sidecars/zcash-viewer` (Rust, axum, `zcash_client_backend` 0.25 /
+`zcash_client_sqlite` 0.23):
+
+- `POST /v1/accounts {ufvk, birthdayHeight?}` imports the key as a view-only
+  account (idempotent; the birthday tree state comes from lightwalletd).
+  `GET /v1/accounts/:id` returns balance, readiness and progress.
+  `GET /v1/accounts/:id/transactions` returns net deltas and fees.
+  `DELETE /v1/accounts/:id` removes the account. All routes need the bearer token.
+- Sync loop: `zcash_client_backend::sync::run` with an in-memory block cache, then
+  the wallet's transaction data requests (full transactions for fees and sent
+  outputs, transparent address history), then block times for blocks it never
+  scanned. An account becomes ready, and stays ready, after the first pass that
+  leaves no scan range pending.
+- The wallet DB is SQLCipher with a raw 256-bit key. Library logs are kept at warn
+  so heights, ranges and addresses don't reach stdout.
+- The worker's adapter (`src/server/chains/zcash/shielded.ts`) re-imports on every
+  sync, so a wiped sidecar volume heals itself (with a rescan).
 
 Amounts are `bigint` base units in code and `TEXT` in SQLite. A transaction's
 `movements` are the net change per asset for the wallet, excluding the fee.

@@ -15,6 +15,13 @@
       "when": 1793396448730,
       "tag": "0001_token_map",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1793444866913,
+      "tag": "0002_sync_note",
+      "breakpoints": true
     }
   ]
 }

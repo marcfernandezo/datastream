@@ -90,6 +90,7 @@ export default async function WalletPage({ params, searchParams }: PageProps<"/w
                 syncing={syncing}
                 lastSyncedAt={wallet.lastSyncedAt}
                 error={wallet.lastSyncError}
+                note={wallet.syncNote}
               />
             </div>
           </div>
@@ -109,7 +110,7 @@ export default async function WalletPage({ params, searchParams }: PageProps<"/w
           <Card>
             <CardHeader>
               <CardTitle className="text-sm font-medium">
-                {wallet.sourceKind === "xpub" ? "Extended public key" : "Address"}
+                {SOURCE_LABEL[wallet.sourceKind]}
               </CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
@@ -120,8 +121,18 @@ export default async function WalletPage({ params, searchParams }: PageProps<"/w
                 >
                   {source}
                 </code>
-                <CopyButton value={source} label="Copy address" />
+                <CopyButton
+                  value={source}
+                  label={`Copy ${SOURCE_LABEL[wallet.sourceKind].toLowerCase()}`}
+                />
               </div>
+              {wallet.sourceKind === "ufvk" && (
+                <p className="text-xs text-muted-foreground">
+                  Shielded and transparent funds of this key, synced by the zcash-viewer sidecar.
+                  {typeof wallet.options.birthdayHeight === "number" &&
+                    ` Scanned from block ${wallet.options.birthdayHeight.toLocaleString("en")}.`}
+                </p>
+              )}
               {typeof wallet.options.scriptType === "string" && (
                 <p className="text-xs text-muted-foreground">
                   Address type: <span className="font-mono">{wallet.options.scriptType}</span>

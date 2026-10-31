@@ -57,6 +57,13 @@ export interface SyncContext {
   memo: Map<string, unknown>;
 }
 
+/** What `ChainAdapter.forget` gets: no adapter state scratch space, no memo. */
+export interface ForgetContext {
+  http: HttpClient;
+  signal: AbortSignal;
+  log: Logger;
+}
+
 export interface ParsedSource {
   source: WalletSource;
   /** Masked display form, e.g. `bc1q…x7f2`. */
@@ -98,6 +105,28 @@ export interface ChainAdapter {
   explorerUrl(kind: "tx" | "address", id: string): string;
   /** How to show the source to its owner (e.g. zpub instead of the normalized xpub). */
   displaySource?(src: WalletSource): string;
+  /**
+   * Called by the worker after a wallet is deleted, with the adapter's last
+   * persisted sync state. Releases provider-side data, e.g. a viewing key
+   * imported into the shielded Zcash sidecar. Must be idempotent.
+   */
+  forget?(ctx: ForgetContext, state: Record<string, unknown>): Promise<void>;
+}
+
+/**
+ * The provider can't answer completely yet (e.g. a first shielded scan is
+ * still running). The sync is retried later without counting as a failure,
+ * no partial data is stored (so old transactions never trigger alerts), and
+ * `message` is shown as progress. Adapter state is persisted.
+ */
+export class SyncPendingError extends Error {
+  constructor(
+    message: string,
+    public readonly retryAfterMs = 60_000,
+  ) {
+    super(message);
+    this.name = "SyncPendingError";
+  }
 }
 
 export class SourceValidationError extends Error {

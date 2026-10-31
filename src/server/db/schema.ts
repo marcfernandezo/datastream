@@ -69,6 +69,8 @@ export const wallets = sqliteTable(
     initialSyncDone: integer("initial_sync_done", { mode: "boolean" }).notNull().default(false),
     lastSyncedAt: integer("last_synced_at", { mode: "timestamp_ms" }),
     lastSyncError: text("last_sync_error"),
+    /** Progress while a sync is deferred (e.g. "Scanning shielded history 43%"). */
+    syncNote: text("sync_note"),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("wallets_fingerprint_uq").on(t.fingerprint)],

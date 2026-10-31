@@ -1,8 +1,8 @@
 # Datastream
 
 A self-hosted, **watch-only** crypto portfolio for a Raspberry Pi or home mini PC.
-See balances, history and the EUR value of your Bitcoin, Ethereum and Solana
-wallets without opening Ledger Live or exposing any keys.
+See balances, history and the EUR value of your Bitcoin, Ethereum, Solana and
+Zcash wallets without opening Ledger Live or exposing any keys.
 
 - **Watch-only by construction.** Only public addresses, extended public keys
   (xpub/ypub/zpub) and viewing keys. There is no field, column or code path for
@@ -13,7 +13,8 @@ wallets without opening Ledger Live or exposing any keys.
 - **Networks:** Bitcoin (addresses + xpub/ypub/zpub, gap-limit scanning),
   Ethereum (ETH + ERC-20 via Etherscan or Alchemy), Solana (SOL + SPL via any
   RPC or Helius), Zcash transparent addresses (t1/t3/TEX via a Blockchair-compatible
-  API). Shielded Zcash is planned (see [Roadmap](#roadmap)).
+  API) and, optionally, shielded Zcash from a Unified Full Viewing Key via a Rust
+  light-client sidecar (see [Shielded Zcash](#shielded-zcash)).
 - **Dashboard:** total value in EUR, 24h/7d/30d change, performance chart,
   allocation by asset and network, per-wallet history with filters, explorer
   links, CSV export, groups, privacy mode (`H`), alerts via ntfy or Telegram,
@@ -26,13 +27,13 @@ wallets without opening Ledger Live or exposing any keys.
 - [Quick start (development)](#quick-start-development)
 - [Deploying on a Pi / mini PC](#deploying-on-a-pi--mini-pc)
 - [Configuration](#configuration)
+- [Shielded Zcash](#shielded-zcash)
 - [Operations](#operations): CLI, backups, restore, key rotation, upgrades
 - [Threat model](#threat-model)
 - [Architecture](#architecture)
 - [Adding a network](#adding-a-network)
 - [Testing](#testing)
 - [Limitations](#limitations)
-- [Roadmap](#roadmap)
 
 ---
 
@@ -58,7 +59,8 @@ Alternatively, `pnpm ds set-password` sets it from the terminal.
 ## Deploying on a Pi / mini PC
 
 Datastream runs as three containers: **web** (Next.js), **worker** (sync and jobs) and
-**caddy** (TLS + reverse proxy). The image is multi-arch (arm64 and amd64), and a
+**caddy** (TLS + reverse proxy), plus an optional fourth, **zcash-viewer**, for
+shielded Zcash. The images are multi-arch (arm64 and amd64), and a
 Raspberry Pi 4/5 with 2 GB+ RAM is plenty.
 
 ```bash
@@ -126,10 +128,62 @@ startup. A bad value stops the process with a readable error. The main ones:
 | `BTC_ESPLORA_URL` / `BTC_ESPLORA_RPS`                     | Any Esplora API. Point at your own mempool/electrs for privacy, and raise the RPS.            |
 | `ETH_PROVIDER` + `ETHERSCAN_API_KEY` or `ALCHEMY_API_KEY` | Ethereum data source.                                                                         |
 | `SOL_PROVIDER` + `SOL_RPC_URL` or `HELIUS_API_KEY`        | Solana data source.                                                                           |
+| `ZEC_EXPLORER_API_URL` / `ZEC_EXPLORER_API_KEY`           | Zcash transparent addresses (Blockchair-compatible API).                                      |
+| `ZCASH_VIEWER_*` / `LIGHTWALLETD_URL`                     | Shielded Zcash sidecar (optional). See [Shielded Zcash](#shielded-zcash).                     |
 | `COINGECKO_API_KEY` / `COINGECKO_API_TIER`                | Optional CoinGecko demo/pro key.                                                              |
 | `PUBLIC_URL`                                              | Your Datastream URL, used for links in alerts.                                                |
 | `SYNC_INTERVAL_MINUTES` / `PRICE_INTERVAL_MINUTES`        | Background schedule.                                                                          |
 | `BACKUP_*`                                                | Backup location, retention, encryption, hour.                                                 |
+
+---
+
+## Shielded Zcash
+
+Shielded balances need trial decryption of every block, which no JavaScript library
+does reliably, so it runs in a small, separate Rust service: **zcash-viewer**
+([`sidecars/zcash-viewer`](sidecars/zcash-viewer)). It's built on ECC's
+`zcash_client_backend` / `zcash_client_sqlite`, the same crates as Zashi.
+
+- You paste a **Unified Full Viewing Key** (`uview1…`). Datastream stores it encrypted
+  like an xpub, and the worker hands it to the sidecar, which imports it as a
+  **view-only** account. There are no spending keys, proving parameters or transaction
+  building anywhere in the sidecar.
+- The sidecar syncs from a `lightwalletd` server and decrypts locally. The server never
+  sees the viewing key. Balances include the key's Sapling, Orchard and transparent
+  funds, so don't also add its transparent addresses separately.
+- Its wallet database (viewing keys + decrypted history) is **SQLCipher-encrypted**
+  with `ZCASH_VIEWER_DB_KEY`. It only listens on the compose network, behind a bearer
+  token, and never receives `DATASTREAM_ENC_KEY`.
+- Nothing is stored in Datastream until the account's first scan is complete. Until
+  then the wallet shows "Scanning shielded history…", so old transactions never fire
+  alerts. Deleting the wallet removes the key from the sidecar too.
+
+**Enable it:**
+
+```bash
+# in .env
+ZCASH_VIEWER_URL=http://zcash-viewer:8232
+ZCASH_VIEWER_TOKEN=$(openssl rand -hex 32)
+ZCASH_VIEWER_DB_KEY=$(openssl rand -base64 32)
+# optional: your own server, e.g. https://lightwalletd.lan:9067 (or http:// on a LAN)
+LIGHTWALLETD_URL=https://zec.rocks:443
+
+docker compose --profile zcash up -d --build
+```
+
+The first image build compiles Rust and takes a while (on a Pi, pull a prebuilt image
+or build on a faster machine with `docker buildx --platform linux/arm64`).
+
+**Wallet birthday.** When adding the key, give the date the wallet was created (or a
+block height). Scanning starts there. Left blank, it starts at Orchard activation (May
+2022), which crosses the 2022–23 spam period and can take hours on a Pi. Too late a
+birthday misses older funds: delete the wallet and add it again with an earlier date.
+
+**Operations.** The sidecar's volume (`zcash_data`) is a cache that can be rebuilt from
+the chain, since the keys live in Datastream's database. It isn't part of the backups.
+To rescan from scratch: `docker compose --profile zcash down`, `docker volume rm
+datastream_zcash_data`, start again. Keep `ZCASH_VIEWER_DB_KEY` stable: a new key
+can't open the old volume (remove the volume, as above, to start over).
 
 ---
 
@@ -201,19 +255,21 @@ Datastream never holds anything that can move funds. The worst case is a
 which addresses are yours, your balances and history, alert/API credentials, and
 access to the dashboard.
 
-| Scenario                                                                                        | What is exposed                                                                                                                                                                                | Mitigations                                                                                                                                                                                                      |
-| ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Database file stolen** (no `.env`)                                                            | Single addresses you added, transaction history (txids can be looked up on-chain), balances, labels. **Not** xpubs/viewing keys (so future addresses can't be derived), not alert/API secrets. | AES-256-GCM envelopes with per-purpose AAD; HMAC fingerprints for dedup; derived addresses are never persisted. Use full-disk encryption on the host.                                                            |
-| **Backup copied off-device**                                                                    | Nothing, if `BACKUP_ENCRYPT=true` (default).                                                                                                                                                   | Encrypted backups with an HKDF-derived key; authenticated (tampering is detected).                                                                                                                               |
-| **Whole device compromised** (DB + `.env`)                                                      | Everything Datastream knows about your wallets. No funds.                                                                                                                                      | Out of scope: protect the host (updates, SSH keys, firewall).                                                                                                                                                    |
-| **Someone on your LAN / tailnet**                                                               | Nothing without the password.                                                                                                                                                                  | Argon2id, rate-limited login (per IP and global), opaque sessions (only SHA-256 hashes stored) with idle + absolute expiry, `__Host-` cookies with `HttpOnly; Secure; SameSite=Strict`, optional CIDR allowlist. |
-| **Network eavesdropper on the LAN**                                                             | Nothing.                                                                                                                                                                                       | TLS via Caddy, HSTS.                                                                                                                                                                                             |
-| **Malicious token metadata / XSS**                                                              | —                                                                                                                                                                                              | Strict nonce-based CSP (`script-src 'nonce-…' 'strict-dynamic'`), no third-party scripts/fonts/images, React escaping, CSV formula-injection escaping, spam tokens hidden by default.                            |
-| **Chain / price API providers** (Esplora, Etherscan/Alchemy, RPC/Helius, Blockchair, CoinGecko) | Your server's IP plus every address/xpub-derived address it queries. A provider can link them as belonging to one owner.                                                                       | Point Esplora/RPC at your own node for real privacy; requests come only from the server, never your browser; provider rates are throttled. Providers can't move funds; at worst they report wrong balances.      |
-| **Notification providers** (ntfy, Telegram)                                                     | Wallet labels, direction and amounts (or nothing but the label with "hide amounts"). Never addresses or txids.                                                                                 | Per-channel "hide amounts"; long random ntfy topics or a self-hosted ntfy.                                                                                                                                       |
-| **Shoulder surfing**                                                                            | —                                                                                                                                                                                              | Privacy mode masks every amount (server-rendered, no flash). It is visual masking: values are still in the page.                                                                                                 |
-| **Logs shipped elsewhere**                                                                      | Wallet ids and counts, never full addresses, xpubs, keys or txids.                                                                                                                             | Every log line passes a masker; credentials in URLs (Telegram, Alchemy, Helius) are redacted; tests enforce it.                                                                                                  |
-| **Supply chain**                                                                                | —                                                                                                                                                                                              | Frozen lockfile, pnpm build-script allowlist, small dependency set, CI on every change.                                                                                                                          |
+| Scenario                                                                                        | What is exposed                                                                                                                                                                                 | Mitigations                                                                                                                                                                                                      |
+| ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Database file stolen** (no `.env`)                                                            | Single addresses you added, transaction history (txids can be looked up on-chain), balances, labels. **Not** xpubs/viewing keys (so future addresses can't be derived), not alert/API secrets.  | AES-256-GCM envelopes with per-purpose AAD; HMAC fingerprints for dedup; derived addresses are never persisted. Use full-disk encryption on the host.                                                            |
+| **Shielded sidecar volume stolen**                                                              | Nothing without `ZCASH_VIEWER_DB_KEY`.                                                                                                                                                          | SQLCipher (AES-256) over the whole wallet DB; the key is passed only to the sidecar container.                                                                                                                   |
+| **Backup copied off-device**                                                                    | Nothing, if `BACKUP_ENCRYPT=true` (default).                                                                                                                                                    | Encrypted backups with an HKDF-derived key; authenticated (tampering is detected).                                                                                                                               |
+| **Whole device compromised** (DB + `.env`)                                                      | Everything Datastream knows about your wallets. No funds.                                                                                                                                       | Out of scope: protect the host (updates, SSH keys, firewall).                                                                                                                                                    |
+| **Someone on your LAN / tailnet**                                                               | Nothing without the password.                                                                                                                                                                   | Argon2id, rate-limited login (per IP and global), opaque sessions (only SHA-256 hashes stored) with idle + absolute expiry, `__Host-` cookies with `HttpOnly; Secure; SameSite=Strict`, optional CIDR allowlist. |
+| **Network eavesdropper on the LAN**                                                             | Nothing.                                                                                                                                                                                        | TLS via Caddy, HSTS.                                                                                                                                                                                             |
+| **Malicious token metadata / XSS**                                                              | —                                                                                                                                                                                               | Strict nonce-based CSP (`script-src 'nonce-…' 'strict-dynamic'`), no third-party scripts/fonts/images, React escaping, CSV formula-injection escaping, spam tokens hidden by default.                            |
+| **Chain / price API providers** (Esplora, Etherscan/Alchemy, RPC/Helius, Blockchair, CoinGecko) | Your server's IP plus every address/xpub-derived address it queries. A provider can link them as belonging to one owner.                                                                        | Point Esplora/RPC at your own node for real privacy; requests come only from the server, never your browser; provider rates are throttled. Providers can't move funds; at worst they report wrong balances.      |
+| **lightwalletd** (shielded Zcash)                                                               | Your IP, the wallet birthday (at import), the blocks you download, and the transparent addresses and txids the sidecar looks up. **Never** the viewing key or which shielded outputs are yours. | Trial decryption is local. Use your own lightwalletd (`LIGHTWALLETD_URL`) to keep even this metadata home.                                                                                                       |
+| **Notification providers** (ntfy, Telegram)                                                     | Wallet labels, direction and amounts (or nothing but the label with "hide amounts"). Never addresses or txids.                                                                                  | Per-channel "hide amounts"; long random ntfy topics or a self-hosted ntfy.                                                                                                                                       |
+| **Shoulder surfing**                                                                            | —                                                                                                                                                                                               | Privacy mode masks every amount (server-rendered, no flash). It is visual masking: values are still in the page.                                                                                                 |
+| **Logs shipped elsewhere**                                                                      | Wallet ids and counts, never full addresses, xpubs, keys or txids.                                                                                                                              | Every log line passes a masker; credentials in URLs (Telegram, Alchemy, Helius) are redacted; tests enforce it.                                                                                                  |
+| **Supply chain**                                                                                | —                                                                                                                                                                                               | Frozen lockfile, pnpm build-script allowlist, small dependency set, CI on every change.                                                                                                                          |
 
 Non-goals: anonymity against API providers (use your own node), protection against a
 compromised host OS, multi-user access.
@@ -229,13 +285,15 @@ browser ──HTTPS──▶ caddy ──▶ web (Next.js App Router, reads SQLi
                                 │
                      SQLite (WAL, /data)
                                 │
-                             worker ──▶ Esplora · Etherscan/Alchemy · Solana RPC · CoinGecko · ntfy/Telegram
+                             worker ──▶ Esplora · Etherscan/Alchemy · Solana RPC · Blockchair · CoinGecko · ntfy/Telegram
+                                │
+                                └──▶ zcash-viewer (optional, Rust) ──gRPC──▶ lightwalletd
 ```
 
 - `src/server/chains/*`: one adapter per network behind `ChainAdapter`
   (`getBalance`, `getTokens`, `getTransactions`).
-- `src/server/jobs/*`: durable SQLite job queue. Jobs: `wallet.sync`, `prices.*`,
-  `alerts.dispatch`, `maintenance.*`.
+- `src/server/jobs/*`: durable SQLite job queue. Jobs: `wallet.sync`, `wallet.forget`,
+  `prices.*`, `alerts.dispatch`, `maintenance.*`.
 - `src/server/auth/*`: proxy-level checks plus an authoritative Data Access Layer.
 - Amounts are `bigint` base units end to end; EUR is display-only.
 
@@ -305,10 +363,11 @@ browser ──HTTPS──▶ caddy ──▶ web (Next.js App Router, reads SQLi
 pnpm test          # Vitest: BTC BIP44/49/84/86 vectors, adapters (MSW), sync, crypto, auth, prices, alerts, export, backups
 pnpm build && pnpm test:e2e   # Playwright against the production build (desktop + mobile)
 pnpm lint && pnpm typecheck && pnpm format:check
+(cd sidecars/zcash-viewer && cargo fmt --check && cargo clippy --all-targets && cargo test)
 ```
 
-CI (GitHub Actions) runs all of the above and builds the Docker image for
-`linux/amd64` and `linux/arm64` on every push and pull request.
+CI (GitHub Actions) runs all of the above and builds both Docker images (app and
+sidecar) for `linux/amd64` and `linux/arm64` on every push and pull request.
 
 ---
 
@@ -323,9 +382,5 @@ CI (GitHub Actions) runs all of the above and builds the Docker image for
 - 24h/7d/30d changes reflect the price performance of current holdings, not
   deposits and withdrawals.
 - Privacy mode is visual masking for shoulder surfing, not access control.
-
-## Roadmap
-
-- **Shielded Zcash:** balances and history from a Unified Full Viewing Key, synced
-  only on the backend by an isolated light-client sidecar against your own
-  `lightwalletd`. Transparent addresses are already supported.
+- Shielded Zcash transactions appear once mined (no mempool scanning), and the
+  first scan of a viewing key can take a long time with an early birthday.

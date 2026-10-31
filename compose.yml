@@ -50,6 +50,38 @@ services:
       timeout: 5s
       start_period: 30s
 
+  # Shielded Zcash (optional): docker compose --profile zcash up -d --build
+  # Reachable only on the compose network; nothing is published to the host.
+  zcash-viewer:
+    profiles: ["zcash"]
+    build: ./sidecars/zcash-viewer
+    image: datastream-zcash-viewer:local
+    restart: unless-stopped
+    # Only what it needs: the sidecar never sees DATASTREAM_ENC_KEY.
+    environment:
+      ZCASH_VIEWER_TOKEN: ${ZCASH_VIEWER_TOKEN:-}
+      ZCASH_VIEWER_DB_KEY: ${ZCASH_VIEWER_DB_KEY:-}
+      LIGHTWALLETD_URL: ${LIGHTWALLETD_URL:-https://zec.rocks:443}
+      ZCASH_SYNC_INTERVAL_SECS: ${ZCASH_SYNC_INTERVAL_SECS:-120}
+      ZCASH_SYNC_BATCH_SIZE: ${ZCASH_SYNC_BATCH_SIZE:-200}
+    expose: ["8232"]
+    volumes:
+      # Rebuildable from the chain (the viewing keys live in Datastream's DB);
+      # not part of the SQLite backups.
+      - zcash_data:/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    stop_grace_period: 20s
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: local
+      options:
+        max-size: 10m
+        max-file: "3"
+
   caddy:
     image: caddy:2.10-alpine
     restart: unless-stopped
@@ -70,3 +102,4 @@ services:
 volumes:
   caddy_data:
   caddy_config:
+  zcash_data:
