@@ -9,7 +9,10 @@ const COPY: Record<string, { placeholder: string; hint: string }> = {
   },
   eth: { placeholder: "0x…", hint: "ETH and ERC-20 tokens on Ethereum mainnet." },
   sol: { placeholder: "Base58 address", hint: "SOL and SPL tokens." },
-  zec: { placeholder: "t1… or uview1…", hint: "Transparent address or Unified Full Viewing Key." },
+  zec: {
+    placeholder: "t1… / t3… / tex1…",
+    hint: "Transparent address. Shielded (viewing key) support is coming.",
+  },
 };
 
 export function networkOptions(): NetworkOption[] {

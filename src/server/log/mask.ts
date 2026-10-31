@@ -10,7 +10,7 @@ const PATTERNS: RegExp[] = [
   new RegExp(`\\b[xyztuvYZUV](?:pub|prv)[${B58}]{100,}`, "g"),
   /\buview(?:test)?1[02-9ac-hj-np-z]{100,}/gi, // Zcash UFVK
   /\b(?:bc|tb|bcrt)1[02-9ac-hj-np-z]{8,87}\b/gi, // bech32/bech32m BTC
-  /\b(?:zs|ztestsapling|u|utest)1[02-9ac-hj-np-z]{20,}\b/gi, // Zcash shielded / unified
+  /\b(?:zs|ztestsapling|u|utest|tex)1[02-9ac-hj-np-z]{20,}\b/gi, // Zcash shielded / unified / TEX
   /\b0x[0-9a-fA-F]{64}\b/g, // EVM tx hashes
   /\b0x[0-9a-fA-F]{40}\b/g, // EVM addresses
   /\b[0-9a-fA-F]{64}\b/g, // BTC/ZEC txids, raw 32-byte hex

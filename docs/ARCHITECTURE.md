@@ -61,7 +61,7 @@ interface ChainAdapter {
 | BTC | address, x/y/zpub | Esplora. Receive + change scan with gap limit; script-type auto-detect for xpubs |
 | ETH | address           | Etherscan v2 or Alchemy: ETH, internal txs, ERC-20, fees                         |
 | SOL | address           | JSON-RPC (Helius DAS optional): SOL, SPL, fees                                   |
-| ZEC | (phase 7)         | Explorer API for t-addrs; UFVK via a sidecar and lightwalletd                    |
+| ZEC | t1/t3/tex address | Blockchair-compatible API; UFVK (shielded) planned via a sidecar + lightwalletd  |
 
 Amounts are `bigint` base units in code and `TEXT` in SQLite. A transaction's
 `movements` are the net change per asset for the wallet, excluding the fee.

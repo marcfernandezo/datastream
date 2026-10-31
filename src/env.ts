@@ -77,6 +77,12 @@ export const envSchema = z
     /** Requests/second to SOL_RPC_URL (public mainnet RPC is heavily rate-limited). */
     SOL_RPC_RPS: z.coerce.number().positive().max(100).default(2),
 
+    ZEC_EXPLORER_API_URL: url("https://api.blockchair.com/zcash"),
+    ZEC_EXPLORER_API_KEY: optionalString,
+    ZEC_EXPLORER_URL: url("https://blockchair.com/zcash"),
+    /** Blockchair's free tier allows ~1440 requests/day. */
+    ZEC_EXPLORER_RPS: z.coerce.number().positive().max(100).default(0.5),
+
     COINGECKO_API_KEY: optionalString,
     COINGECKO_API_TIER: z.enum(["demo", "pro"]).default("demo"),
     COINGECKO_BASE_URL: optionalString.pipe(z.url().optional()),

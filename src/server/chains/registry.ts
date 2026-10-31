@@ -5,6 +5,7 @@ import { createEthereumAdapter } from "./ethereum/adapter";
 import { createAlchemyProvider } from "./ethereum/alchemy";
 import { createEtherscanProvider } from "./ethereum/etherscan";
 import { createSolanaAdapter } from "./solana/adapter";
+import { createZcashAdapter } from "./zcash/adapter";
 import type { ChainAdapter, NetworkId } from "./types";
 
 /**
@@ -56,6 +57,12 @@ function build(): Map<NetworkId, ChainAdapter> {
             initialPages: 4,
           },
     ),
+    createZcashAdapter({
+      apiUrl: e.ZEC_EXPLORER_API_URL,
+      apiKey: e.ZEC_EXPLORER_API_KEY,
+      explorerUrl: e.ZEC_EXPLORER_URL,
+      rps: e.ZEC_EXPLORER_RPS,
+    }),
   ];
   return new Map(list.map((a) => [a.network, a]));
 }
