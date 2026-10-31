@@ -1,5 +1,7 @@
 import { eq } from "drizzle-orm";
+import { z } from "zod";
 import { env } from "@/env";
+import { dispatchAlerts } from "@/server/alerts/service";
 import { purgeExpiredSessions } from "@/server/auth/session";
 import { sharedHttp } from "@/server/chains/registry";
 import { db, schema } from "@/server/db/client";
@@ -41,11 +43,21 @@ export const handlers: Record<string, JobHandler> = {
       .from(schema.wallets)
       .where(eq(schema.wallets.id, walletId))
       .get()?.done;
-    await syncWallet(walletId, { http: sharedHttp(), signal });
+    const { newTxIds } = await syncWallet(walletId, { http: sharedHttp(), signal });
+    if (newTxIds.length) enqueue("alerts.dispatch", { txIds: newTxIds });
     // Price new assets right away; a first sync also needs history + backfill.
     enqueue("prices.refresh", {}, { key: "prices.refresh" });
     if (wasInitial)
       enqueue("prices.daily", {}, { key: "prices.daily", runAfter: new Date(Date.now() + 10_000) });
+  },
+
+  async "alerts.dispatch"(job, signal) {
+    const txIds = z
+      .array(z.number().int())
+      .max(10_000)
+      .parse(job.payload.txIds ?? []);
+    const result = await dispatchAlerts(txIds, signal);
+    logger.info(result, "alerts dispatched");
   },
 
   async "prices.refresh"(_job, signal) {

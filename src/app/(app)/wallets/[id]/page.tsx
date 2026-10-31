@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ExternalLink, History } from "lucide-react";
+import { ArrowLeft, Download, ExternalLink, History } from "lucide-react";
 import { z } from "zod";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { CopyButton } from "@/components/copy-button";
@@ -21,7 +21,10 @@ import {
   walletAssets,
   walletBalances,
 } from "@/server/wallets/queries";
+import { buttonVariants } from "@/components/ui/button";
+import { listGroups, walletGroupIds } from "@/server/wallets/groups";
 import { BalancesCard } from "./balances-card";
+import { GroupsCard } from "./groups-card";
 import { WalletActions } from "./wallet-actions";
 
 export const metadata: Metadata = { title: "Wallet" };
@@ -102,40 +105,47 @@ export default async function WalletPage({ params, searchParams }: PageProps<"/w
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle className="text-sm font-medium">
-              {wallet.sourceKind === "xpub" ? "Extended public key" : "Address"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            <div className="flex items-start gap-1">
-              <code
-                className="min-w-0 flex-1 rounded-md bg-muted p-2 text-xs break-all"
-                data-private
-              >
-                {source}
-              </code>
-              <CopyButton value={source} label="Copy address" />
-            </div>
-            {typeof wallet.options.scriptType === "string" && (
-              <p className="text-xs text-muted-foreground">
-                Address type: <span className="font-mono">{wallet.options.scriptType}</span>
-              </p>
-            )}
-            {explorerAddressUrl && (
-              <Link
-                href={explorerAddressUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-              >
-                View on block explorer <ExternalLink className="size-3" />
-              </Link>
-            )}
-          </CardContent>
-        </Card>
+        <div className="flex flex-col gap-6 lg:col-span-1">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium">
+                {wallet.sourceKind === "xpub" ? "Extended public key" : "Address"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              <div className="flex items-start gap-1">
+                <code
+                  className="min-w-0 flex-1 rounded-md bg-muted p-2 text-xs break-all"
+                  data-private
+                >
+                  {source}
+                </code>
+                <CopyButton value={source} label="Copy address" />
+              </div>
+              {typeof wallet.options.scriptType === "string" && (
+                <p className="text-xs text-muted-foreground">
+                  Address type: <span className="font-mono">{wallet.options.scriptType}</span>
+                </p>
+              )}
+              {explorerAddressUrl && (
+                <Link
+                  href={explorerAddressUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  View on block explorer <ExternalLink className="size-3" />
+                </Link>
+              )}
+            </CardContent>
+          </Card>
 
+          <GroupsCard
+            walletId={wallet.id}
+            groups={listGroups()}
+            memberOf={walletGroupIds(wallet.id)}
+          />
+        </div>
         <BalancesCard
           balances={walletBalances(wallet.id)}
           prices={spotPrices(coinIds)}
@@ -145,7 +155,16 @@ export default async function WalletPage({ params, searchParams }: PageProps<"/w
 
       <Card className="mt-6">
         <CardHeader className="gap-4">
-          <CardTitle className="text-sm font-medium">History</CardTitle>
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="text-sm font-medium">History</CardTitle>
+            <a
+              href={`/api/export?wallet=${wallet.id}${filters.from ? `&from=${filters.from}` : ""}${filters.to ? `&to=${filters.to}` : ""}`}
+              className={buttonVariants({ variant: "outline", size: "sm" })}
+              download
+            >
+              <Download className="size-3.5" /> Export CSV
+            </a>
+          </div>
           <TxFilters
             assets={walletAssets([wallet.id])}
             values={filters}

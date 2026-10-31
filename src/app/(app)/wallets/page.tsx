@@ -1,12 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Archive, Wallet } from "lucide-react";
+import { Archive, Download, Wallet } from "lucide-react";
 import { Private, TokenAmount } from "@/components/amount";
 import { EmptyState } from "@/components/empty-state";
 import { NetworkIcon } from "@/components/network-badge";
 import { PageHeader } from "@/components/page-header";
 import { SyncStatus } from "@/components/sync-status";
+import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
+import { listGroups, walletIdsInGroup } from "@/server/wallets/groups";
+import { GroupsDialog } from "./groups-dialog";
 import { verifySession } from "@/server/auth/dal";
 import { getAdapter } from "@/server/chains/registry";
 import { listWallets } from "@/server/wallets/queries";
@@ -19,9 +23,25 @@ export const metadata: Metadata = { title: "Wallets" };
 
 export default async function WalletsPage({ searchParams }: PageProps<"/wallets">) {
   await verifySession();
-  const showArchived = (await searchParams).archived === "1";
-  const wallets = listWallets({ includeArchived: showArchived });
+  const sp = await searchParams;
+  const showArchived = sp.archived === "1";
+  const groups = listGroups();
+  const groupId =
+    typeof sp.group === "string" && groups.some((g) => g.id === sp.group) ? sp.group : null;
+  const inGroup = groupId ? new Set(walletIdsInGroup(groupId)) : null;
+  const wallets = listWallets({ includeArchived: showArchived }).filter(
+    (w) => !inGroup || inGroup.has(w.id),
+  );
   const values = walletValues();
+  const total = wallets.filter((w) => !w.archived).reduce((s, w) => s + (values.get(w.id) ?? 0), 0);
+  const href = (group: string | null, archived: boolean) => {
+    const q = new URLSearchParams();
+    if (group) q.set("group", group);
+    if (archived) q.set("archived", "1");
+    const qs = q.toString();
+    return qs ? `/wallets?${qs}` : "/wallets";
+  };
+
   const add = <AddWalletDialog networks={networkOptions()} />;
 
   return (
@@ -31,8 +51,16 @@ export default async function WalletsPage({ searchParams }: PageProps<"/wallets"
         description="Watch-only. Addresses and keys are encrypted at rest."
         actions={
           <>
+            <GroupsDialog groups={groups} />
+            <a
+              href={`/api/export${groupId ? `?group=${groupId}` : ""}`}
+              className={buttonVariants({ variant: "outline" })}
+              download
+            >
+              <Download className="size-4" /> CSV
+            </a>
             <Link
-              href={showArchived ? "/wallets" : "/wallets?archived=1"}
+              href={href(groupId, !showArchived)}
               className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
             >
               <Archive className="size-4" aria-hidden />
@@ -42,6 +70,31 @@ export default async function WalletsPage({ searchParams }: PageProps<"/wallets"
           </>
         }
       />
+      {groups.length > 0 && (
+        <nav className="mb-4 flex flex-wrap items-center gap-2" aria-label="Filter by group">
+          {[{ id: null, name: "All" }, ...groups].map((g) => (
+            <Link
+              key={g.id ?? "all"}
+              href={href(g.id, showArchived)}
+              aria-current={g.id === groupId ? "page" : undefined}
+              className={cn(
+                "rounded-full border px-3 py-1 text-xs font-medium",
+                g.id === groupId
+                  ? "border-transparent bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-muted",
+              )}
+            >
+              {g.name}
+            </Link>
+          ))}
+          {groupId && (
+            <span className="ml-auto text-sm text-muted-foreground">
+              Group total{" "}
+              <Private className="font-medium text-foreground">{formatEur(total)}</Private>
+            </span>
+          )}
+        </nav>
+      )}
       {wallets.length === 0 ? (
         <EmptyState
           icon={Wallet}

@@ -8,6 +8,12 @@ import { SourceValidationError } from "@/server/chains/types";
 import { PrivateKeyMaterialError } from "@/server/crypto/secret-guard";
 import { logger } from "@/server/log/logger";
 import {
+  createGroup,
+  deleteGroup,
+  DuplicateGroupError,
+  setMembership,
+} from "@/server/wallets/groups";
+import {
   createWallet,
   deleteWallet,
   DuplicateWalletError,
@@ -97,5 +103,32 @@ const assetIdSchema = z
 export async function setAssetVisibilityAction(assetId: string, hide: boolean) {
   await authorizeAction();
   setAssetHidden(assetIdSchema.parse(assetId), hide);
+  revalidatePath("/", "layout");
+}
+
+export async function createGroupAction(
+  _prev: WalletFormState,
+  formData: FormData,
+): Promise<WalletFormState> {
+  try {
+    await authorizeAction();
+    createGroup(String(formData.get("name") ?? ""));
+  } catch (err) {
+    if (err instanceof DuplicateGroupError) return { error: err.message };
+    return { error: toMessage(err) };
+  }
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export async function deleteGroupAction(groupId: string) {
+  await authorizeAction();
+  deleteGroup(idSchema.parse(groupId));
+  revalidatePath("/", "layout");
+}
+
+export async function setMembershipAction(walletId: string, groupId: string, member: boolean) {
+  await authorizeAction();
+  setMembership(idSchema.parse(walletId), idSchema.parse(groupId), member);
   revalidatePath("/", "layout");
 }

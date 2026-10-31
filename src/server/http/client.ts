@@ -45,7 +45,11 @@ export interface HttpClient {
 export function describeUrl(url: string): string {
   try {
     const u = new URL(url);
-    return `${u.host}${maskSensitive(u.pathname)}`;
+    // Some APIs (Telegram, Alchemy, Helius) carry credentials in the path.
+    const path = u.pathname
+      .replace(/\/bot\d+:[^/]+/g, "/bot[redacted]")
+      .replace(/\/v2\/[^/]{16,}/g, "/v2/[redacted]");
+    return `${u.host}${maskSensitive(path)}`;
   } catch {
     return "[invalid url]";
   }
