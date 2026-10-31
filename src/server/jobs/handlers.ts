@@ -1,10 +1,14 @@
+import { existsSync, readdirSync } from "node:fs";
+import path from "node:path";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { env } from "@/env";
 import { dispatchAlerts } from "@/server/alerts/service";
 import { purgeExpiredSessions } from "@/server/auth/session";
 import { sharedHttp } from "@/server/chains/registry";
-import { db, schema } from "@/server/db/client";
+import { db, getHandle, schema } from "@/server/db/client";
+import { createBackup, pruneBackups } from "@/server/backup/backup";
+import { keyring } from "@/server/crypto/keyring";
 import { logger } from "@/server/log/logger";
 import {
   backfillSnapshots,
@@ -51,6 +55,23 @@ export const handlers: Record<string, JobHandler> = {
       enqueue("prices.daily", {}, { key: "prices.daily", runAfter: new Date(Date.now() + 10_000) });
   },
 
+  async "maintenance.backup"() {
+    const e = env();
+    const now = new Date();
+    // Runs hourly; acts once per UTC day, after BACKUP_HOUR_UTC.
+    if (now.getUTCHours() < e.BACKUP_HOUR_UTC) return;
+    const today = now.toISOString().slice(0, 10);
+    const existing = existsSync(e.BACKUP_DIR) ? readdirSync(e.BACKUP_DIR) : [];
+    if (existing.some((f) => f.startsWith(`datastream-${today}T`) && !f.endsWith(".partial")))
+      return;
+    const file = await createBackup(getHandle().sqlite, e.BACKUP_DIR, {
+      key: e.BACKUP_ENCRYPT ? keyring().current : undefined,
+      now,
+    });
+    const pruned = pruneBackups(e.BACKUP_DIR, e.BACKUP_KEEP_DAILY, e.BACKUP_KEEP_WEEKLY);
+    logger.info({ file: path.basename(file), pruned: pruned.length }, "backup written");
+  },
+
   async "alerts.dispatch"(job, signal) {
     const txIds = z
       .array(z.number().int())
@@ -83,6 +104,7 @@ export function periodicTasks(): PeriodicTask[] {
   const e = env();
   return [
     { kind: "maintenance.cleanup", everyMs: 6 * 3_600_000 },
+    { kind: "maintenance.backup", everyMs: 3_600_000 },
     { kind: "prices.tokenMap", everyMs: 24 * 3_600_000 },
     { kind: "wallet.syncAll", everyMs: e.SYNC_INTERVAL_MINUTES * 60_000 },
     { kind: "prices.refresh", everyMs: e.PRICE_INTERVAL_MINUTES * 60_000 },

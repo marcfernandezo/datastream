@@ -1,10 +1,11 @@
-# Datastream — Architecture
+# Datastream: architecture
 
-Watch-only, self-hosted crypto portfolio dashboard. Public addresses, extended
-public keys (xpub/ypub/zpub) and viewing keys (UFVK) only. **There is no field,
-type, column or storage for private keys or seed phrases**, and inputs that look
-like one (BIP39 mnemonic, `xprv`/`yprv`/`zprv`, raw 32-byte hex, Solana keypair
-arrays) are rejected outright.
+Watch-only, self-hosted crypto portfolio. Public addresses, extended public keys
+(xpub/ypub/zpub) and viewing keys only. **There is no field, type, column or
+storage for private keys or seed phrases**, and inputs that look like one
+(BIP39 mnemonic, `xprv`/`yprv`/`zprv`, WIF, raw 32-byte hex, Solana keypairs,
+Zcash spending keys) are rejected before they touch validation, storage or logs
+(`src/server/crypto/secret-guard.ts`).
 
 ## Processes
 
@@ -12,84 +13,81 @@ arrays) are rejected outright.
 ┌────────── browser (PWA) ──────────┐
 │  UI only. No third-party calls.   │
 └──────────────┬────────────────────┘
-               │ HTTPS (Tailscale / LAN reverse proxy)
+               │ HTTPS
+┌──────────────▼────────────────────┐
+│  caddy: TLS, sets X-Forwarded-For │
+└──────────────┬────────────────────┘
 ┌──────────────▼────────────────────┐      ┌───────────────────────────┐
-│  web  (next start, standalone)    │      │  worker  (same codebase)  │
-│  proxy.ts: CIDR allowlist, CSP,   │      │  scheduler loop:          │
-│            optimistic auth check  │      │   • sync wallets          │
-│  RSC + Server Actions + routes    │      │   • refresh prices        │
-│  DAL: authoritative session check │      │   • portfolio snapshots   │
-└──────────────┬────────────────────┘      │   • new tx → alerts       │
-               │                           │   • SQLite backups        │
+│  web  (Next.js standalone)        │      │  worker  (dist/worker.mjs)│
+│  src/proxy.ts: CIDR allowlist,    │      │  job runner:              │
+│   nonce CSP, optimistic auth      │      │   wallet.sync / syncAll   │
+│  RSC pages + Server Actions       │      │   prices.refresh/daily/   │
+│  DAL: authoritative session check │      │     tokenMap              │
+│  migrations at startup            │      │   alerts.dispatch         │
+└──────────────┬────────────────────┘      │   maintenance.backup/     │
+               │                           │     cleanup               │
                └──────────┬────────────────┴───────────┬───────────────┘
-                   SQLite (WAL) on /data volume        │
+                   SQLite (WAL) on /data               │
                                                        ▼
-                 Esplora · Etherscan/Alchemy · Helius/RPC · CoinGecko
-                 ntfy/Telegram · (P7) lightwalletd via zcash sidecar
+          Esplora · Etherscan/Alchemy · Solana RPC/Helius · CoinGecko · ntfy/Telegram
 ```
 
-- The **web** process never calls third-party APIs while rendering; it reads
-  SQLite. "Sync now" only enqueues a job row the worker picks up.
-- The **worker** is a separate Node process built from the same sources
-  (`src/worker.ts`). It is the only process with outbound network access to
-  chain/price providers (enforceable at the Docker network level).
+- The **web** process renders from SQLite only. "Sync now" enqueues a job.
+  The only outbound calls from web are alert _test_ messages.
+- The **worker** shares the codebase, bundled with esbuild. Jobs live in the
+  `jobs` table (dedup keys, exponential backoff, recovery after restart).
 
 ## Network adapters
+
+`src/server/chains/types.ts`:
 
 ```ts
 interface ChainAdapter {
   network: NetworkId;
-  nativeAsset: AssetRef;
+  nativeAsset: AssetInfo;
   supportedSources: SourceKind[];
-  validate(src: WalletSource): ValidationResult;
+  initialMaxPages?: number;
+  parseSource(kind, input, options): ParsedSource;
   getBalance(ctx, src): Promise<AssetAmount[]>;
-  getTokens(ctx, src): Promise<TokenBalance[]>;
-  getTransactions(ctx, src, cursor?): Promise<TxPage>;
-  explorerUrl(kind: "tx" | "address", id: string): string;
+  getTokens(ctx, src): Promise<AssetAmount[]>;
+  getTransactions(ctx, src, { knownTxids, maxPages }): Promise<NormalizedTx[]>;
+  explorerUrl(kind, id): string;
+  displaySource?(src): string;
 }
 ```
 
-Amounts are `bigint` base units in code and `TEXT` in SQLite. They are only
-converted to decimals at the presentation edge.
+| Net | Sources           | Provider                                                                         |
+| --- | ----------------- | -------------------------------------------------------------------------------- |
+| BTC | address, x/y/zpub | Esplora. Receive + change scan with gap limit; script-type auto-detect for xpubs |
+| ETH | address           | Etherscan v2 or Alchemy: ETH, internal txs, ERC-20, fees                         |
+| SOL | address           | JSON-RPC (Helius DAS optional): SOL, SPL, fees                                   |
+| ZEC | (phase 7)         | Explorer API for t-addrs; UFVK via a sidecar and lightwalletd                    |
 
-Adding a network = new folder under `src/server/chains/<net>/`, an entry in
-`registry.ts`, env vars in `src/env.ts`. See README → "Adding a network".
-
-| Net | Sources           | Provider                                      |
-| --- | ----------------- | --------------------------------------------- |
-| BTC | address, x/y/zpub | Esplora (mempool.space default), gap limit 20 |
-| ETH | address           | Etherscan v2 (default) or Alchemy             |
-| SOL | address           | Helius or plain JSON-RPC                      |
-| ZEC | t-addr, UFVK (P7) | explorer API; Rust sidecar ↔ lightwalletd     |
+Amounts are `bigint` base units in code and `TEXT` in SQLite. A transaction's
+`movements` are the net change per asset for the wallet, excluding the fee.
 
 ## Data model
 
-`wallets`, `groups`, `wallet_groups`, `derived_addresses`, `assets`,
-`balances`, `transactions`, `tx_movements`, `prices`, `portfolio_snapshots`,
-`sessions`, `settings`, `alert_channels`, `alert_log`, `jobs`, `sync_runs`.
+`wallets` (encrypted source, HMAC fingerprint, adapter `sync_state`), `groups`,
+`wallet_groups`, `assets` (CoinGecko id, user `hidden` override), `balances`,
+`transactions`, `tx_movements`, `price_spot`, `price_daily`, `token_map`,
+`portfolio_snapshots` (live hourly + backfilled daily), `alert_channels`
+(encrypted config), `alert_log` (one row per channel and tx), `jobs`, `sessions`,
+`settings`.
 
-Sensitive values (xpub, UFVK, alert channel secrets) are stored as AES-256-GCM
-envelopes `v1.<kid>.<iv>.<ct+tag>` keyed by `DATASTREAM_ENC_KEY`. Wallet
-dedup uses an HMAC fingerprint, so the plaintext is never needed to check
-uniqueness.
+Envelope format: `v1.<kid>.<iv>.<ciphertext+tag>`, AES-256-GCM with
+HKDF-derived subkeys and per-purpose AAD. Backups use their own HKDF subkey.
 
 ## Security
 
-- Argon2id password and opaque session tokens (only the SHA-256 hash is stored),
-  `HttpOnly; SameSite=Strict; Secure` cookie, idle and absolute expiry.
-- `proxy.ts`: CIDR allowlist (`ALLOWED_CIDRS`), nonce-based CSP and security
-  headers, optimistic cookie check. Every page, action and route still
-  calls `verifySession()` in the DAL.
-- In-memory token-bucket rate limiting (login is strict).
-- pino logger with address/xpub masking; tested.
-- No telemetry: `NEXT_TELEMETRY_DISABLED=1`, no analytics, fonts bundled at build.
+See the threat model in the README. Summary:
 
-## Delivery phases
-
-1. Plan & architecture (this doc)
-2. Base + auth + DB
-3. BTC, ETH, SOL adapters + wallet CRUD + sync
-4. Prices + dashboard + privacy mode + PWA
-5. Alerts + groups + CSV export
-6. Tests, Docker, CI, docs
-7. Zcash (transparent, then shielded sidecar)
+- Argon2id password; opaque session tokens (SHA-256 stored); idle and absolute
+  expiry; `__Host-` cookie with `HttpOnly; Secure; SameSite=Strict`.
+- `proxy.ts`: CIDR allowlist (fails closed unless a trusted proxy sets the
+  client IP), nonce CSP, HSTS, `no-store`; every page, action and route also
+  calls the DAL.
+- Rate limiting: login per IP and globally, mutations, exports.
+- Log masking of addresses, extended keys, viewing keys, txids; URL credential
+  redaction.
+- Service worker caches only static assets and the offline page.

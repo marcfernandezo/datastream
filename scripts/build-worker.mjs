@@ -16,7 +16,8 @@ await build({
   sourcemap: true,
   tsconfig: "tsconfig.json",
   alias: { "server-only": stub },
-  external: ["better-sqlite3", "@node-rs/argon2", "pino", "pino-pretty"],
+  // Keep in sync with EXTERNALS in scripts/assemble-standalone.mjs.
+  external: ["better-sqlite3", "@node-rs/argon2", "pino"],
   banner: {
     js: "import { createRequire as __dsCreateRequire } from 'node:module'; const require = __dsCreateRequire(import.meta.url);",
   },

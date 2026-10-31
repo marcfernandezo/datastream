@@ -7,6 +7,10 @@
  *   rotate-key       re-encrypt secrets with DATASTREAM_ENC_KEY, reading old
  *                    ones with DATASTREAM_ENC_KEY_PREVIOUS
  *   migrate          apply database migrations
+ *   backup           write a backup now (same as the daily job)
+ *   restore-backup <file> <dest.db>
+ *                    decrypt/unpack a backup into a SQLite file; stop the app,
+ *                    then replace DATABASE_PATH with it
  */
 import { randomBytes } from "node:crypto";
 import { createInterface } from "node:readline";
@@ -68,6 +72,38 @@ const commands: Record<string, () => Promise<void>> = {
     const { deleteAllSessions } = await import("@/server/auth/session");
     deleteAllSessions();
     console.log("All sessions revoked.");
+  },
+
+  async backup() {
+    const { sqlite } = await withDb();
+    const { env } = await import("@/env");
+    const { keyring } = await import("@/server/crypto/keyring");
+    const { createBackup, pruneBackups } = await import("@/server/backup/backup");
+    const e = env();
+    const file = await createBackup(sqlite, e.BACKUP_DIR, {
+      key: e.BACKUP_ENCRYPT ? keyring().current : undefined,
+    });
+    pruneBackups(e.BACKUP_DIR, e.BACKUP_KEEP_DAILY, e.BACKUP_KEEP_WEEKLY);
+    console.log(`Backup written: ${file}`);
+  },
+
+  async "restore-backup"() {
+    const [file, dest] = process.argv.slice(3);
+    if (!file || !dest) throw new Error("Usage: ds restore-backup <backup-file> <dest.db>");
+    const { existsSync } = await import("node:fs");
+    if (existsSync(dest)) throw new Error(`${dest} already exists; refusing to overwrite`);
+    const { restoreBackup } = await import("@/server/backup/backup");
+    const { parseKey } = await import("@/server/crypto/envelope");
+    const raw = process.env.DATASTREAM_ENC_KEY;
+    const old = process.env.DATASTREAM_ENC_KEY_PREVIOUS;
+    try {
+      await restoreBackup(file, dest, raw ? parseKey(raw) : undefined);
+    } catch (err) {
+      // Backups made before a key rotation need the previous key.
+      if (!old) throw err;
+      await restoreBackup(file, dest, parseKey(old));
+    }
+    console.log(`Restored to ${dest}. Stop Datastream, then move it to DATABASE_PATH.`);
   },
 
   async "rotate-key"() {

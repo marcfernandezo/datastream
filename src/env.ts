@@ -27,6 +27,8 @@ export const envSchema = z
     BACKUP_DIR: z.string().default("./data/backups"),
     BACKUP_KEEP_DAILY: int(7, 0, 365),
     BACKUP_KEEP_WEEKLY: int(4, 0, 104),
+    BACKUP_ENCRYPT: bool(true),
+    BACKUP_HOUR_UTC: int(3, 0, 23),
 
     DATASTREAM_ENC_KEY: base64Key,
     DATASTREAM_ENC_KEY_PREVIOUS: base64Key.optional().or(z.literal("").transform(() => undefined)),
